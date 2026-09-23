@@ -70,6 +70,7 @@ def parts(q, eq):
     out.append(('path', 'fb arm', {'d': pts(q['sho'], q['elb'], q['hand'])}))
     if eq == 'bar': out.append(('circle', 'fe bar', {'cx': q['hand'][0], 'cy': q['hand'][1]}))
     elif eq == 'db': out.append(('circle', 'fe db', {'cx': q['hand'][0], 'cy': q['hand'][1]}))
+    elif eq == 'kb': out.append(('circle', 'fe kb', {'cx': q['hand'][0], 'cy': q['hand'][1] + 3}))
     elif eq == 'barhip': out.append(('circle', 'fe bar', {'cx': q['hip'][0], 'cy': q['hip'][1] - 7}))
     elif eq == 'pad': out.append(('circle', 'fe db', {'cx': q['ank'][0], 'cy': q['ank'][1]}))
     return out
@@ -100,7 +101,7 @@ def svg(spec):
             body.append(f'<path class="{cls}" d="{A["d"]}">{anim("d", A["d"], B["d"])}</path>')
         else:
             ax, ay, bx, by = f(A['cx']), f(A['cy']), f(B['cx']), f(B['cy'])
-            r = 5.5 if cls == 'fh' else 8 if 'bar' in cls else 4.2
+            r = 5.5 if cls == 'fh' else 8 if 'bar' in cls else 6 if 'kb' in cls else 4.2
             body.append(f'<circle class="{cls}" cx="{ax}" cy="{ay}" r="{r}">{anim("cx", ax, bx)}{anim("cy", ay, by)}</circle>')
     return '<svg viewBox="0 0 100 100" class="fig" aria-hidden="true">' + ''.join(body) + '</svg>'
 
@@ -147,6 +148,13 @@ FIGS = {
  'calf': S(eq='db', mach=['M44 90H70V95'], A=S(hip=(52, 53), t=90, hand=('rel', 1, 26), es=1, foot=(52, 89), ks=-1, ft=-15), B=S(hip=(52, 47), t=90, hand=('rel', 1, 26), es=1, foot=(53, 84), ks=-1, ft=-60)),
  'crunch': S(eq='none', A=S(hip=(58, 88), t=178, hn=0, hand=('rel', -3, -6), es=1, foot=(78, FLOOR), ks=1), B=S(hip=(58, 88), t=146, hand=('rel', -3, -6), es=1, foot=(78, FLOOR), ks=1)),
  'plank': S(eq='none', A=S(hip=(60, 80), t=176, hand=(44, FLOOR), es=-1, foot=(92, FLOOR), ks=1, ft=-60), B=S(hip=(60, 76), t=174, hand=(44, FLOOR), es=-1, foot=(92, FLOOR), ks=1, ft=-60)),
+ 'goblet': S(eq='kb', A=S(hip=(38, 73), t=62, hand=('rel', 7, 9), es=-1, foot=(52, FLOOR), ks=1), B=dict(STAND, hand=('rel', 7, 9), es=-1)),
+ 'seatedcurl': S(eq='pad', mach=['M26 70H54', 'M30 70L26 40', 'M40 70V94'], A=S(hip=(38, 66), t=96, hand=(46, 70), es=1, foot=(76, 62), ks=-1, ft=80), B=S(hip=(38, 66), t=96, hand=(46, 70), es=1, foot=(52, 88), ks=-1, ft=0)),
+ 'glutekick': S(eq='pad', mach=['M70 30V94', 'M66 44H74'], A=S(hip=(46, 56), t=72, hand=(68, 46), es=1, foot=(48, 92), ks=1, ffoot=(50, FLOOR)), B=S(hip=(46, 56), t=72, hand=(68, 46), es=1, foot=(12, 58), ks=1, ffoot=(50, FLOOR))),
+ 'kbswing': S(eq='kb', A=S(hip=(40, 60), t=38, hand=('rel', -10, 22), es=1, foot=(48, FLOOR), ks=1), B=dict(STAND, hand=(74, 34), es=1)),
+ 'seatedcalf': S(eq='none', mach=['M24 68H48', 'M28 68L24 40', 'M34 68V94', 'M50 90H66', 'M50 58H66'], A=S(hip=(36, 64), t=92, hand=(56, 58), es=1, foot=(57, 88), ks=-1, ft=5), B=S(hip=(36, 64), t=92, hand=(56, 55), es=1, foot=(58, 82), ks=-1, ft=-45)),
+ 'kneeraise': S(eq='none', mach=['M20 11H80', 'M22 11V94', 'M78 11V94'], A=S(hip=(50, 64), t=90, hand=(52, 12), es=1, foot=(48, 100), ks=1), B=S(hip=(50, 64), t=92, hand=(52, 12), es=1, foot=(70, 74), ks=1)),
+ 'sideplank': S(eq='none', A=S(hip=(56, 82), t=162, hand=(46, FLOOR), es=-1, foot=(92, FLOOR), ks=1, ft=-40), B=S(hip=(56, 72), t=158, hand=(46, FLOOR), es=-1, foot=(92, FLOOR), ks=1, ft=-40)),
  'hyper': S(eq='none', mach=['M44 64L60 68', 'M52 66V94'], A=S(hip=(52, 60), t=-62, hand=('rel', 3, 8), es=1, foot=(18, 76), ks=1), B=S(hip=(52, 60), t=4, hand=('rel', -6, 6), es=1, foot=(18, 76), ks=1)),
 }
 
