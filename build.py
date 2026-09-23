@@ -29,7 +29,7 @@ page = f'''<!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 {title}
 <meta name="description" content="Workouts, Trainingspläne, Kalorien und Supplements tracken.">
 <link rel="manifest" href="manifest.webmanifest">

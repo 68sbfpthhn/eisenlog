@@ -29,6 +29,7 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{background:var(--bg)}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -1755,6 +1756,9 @@ document.addEventListener('change', e => {
   }
 });
 
+// Kein Zoomen: Pinch-Geste (iOS) und Doppeltipp abfangen
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 render();
 init();
 })();
