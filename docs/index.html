@@ -351,6 +351,22 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .savechk{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;padding:4px 0}
 .savechk input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .savechk .muted{font-weight:500}
+/* progress */
+.ex-card.kraft{grid-template-columns:auto 1fr auto;column-gap:12px;padding:12px 0}
+.ex-card.kraft svg{grid-column:1/-1}
+.ex-card .statl{font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+.kraft-sum{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kraft-sum div{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column}
+.kraft-sum .big{font-size:30px;line-height:1}.kraft-sum small{font-size:12px;color:var(--muted);font-weight:600}
+.trend{border-radius:11px;padding:10px 12px;background:var(--surface2);font-size:14px}
+.trend.ok{background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.trend.warn{background:color-mix(in srgb,var(--c) 16%,transparent)}
+.hist>summary,.mdet-d>summary{list-style:none;cursor:pointer}
+.hist>summary::-webkit-details-marker,.mdet-d>summary::-webkit-details-marker{display:none}
+.hist>summary{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--muted);padding:4px 0}
+.mdet-d{border-top:1px solid var(--line)}.mdet-d:first-child{border-top:0}
+.mdet-d>summary.item{border-top:0}
+.mdet-body{display:flex;flex-direction:column;gap:6px;padding:0 0 12px}
 /* sheet */
 #sheetBg{position:fixed;inset:0;background:var(--overlay);z-index:20}
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-width:560px;margin:0 auto;max-height:90dvh;overflow:auto;background:var(--surface);border-radius:20px 20px 0 0;padding:10px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain}
@@ -705,7 +721,7 @@ const banner = () => hasExamples() ? `<div class="banner"><span><b>Beispieldaten
 
 /* ---------- views ---------- */
 const ui = { tab: 'heute', date: todayKey(), q: '', tsec: 'trainings' };
-try { const t = localStorage.getItem('eisenlog.tsec'); if (t) ui.tsec = t; } catch {}
+try { const t = localStorage.getItem('eisenlog.tsec'); if (t) ui.tsec = t; const f = localStorage.getItem('eisenlog.fsec'); if (f) ui.fsec = f; } catch {}
 try { const t = localStorage.getItem('eisenlog.tab'); if (TITLES[t]) ui.tab = t; } catch {}
 
 function vHeute() {
@@ -791,21 +807,6 @@ function vActive(a) {
     <button class="btn soft block" data-act="addEx">+ Übung hinzufügen</button>
     <button class="btn primary block" data-act="finish">Training beenden & speichern</button>
     <button class="btn ghost block danger" data-act="discard" data-confirm="Wirklich verwerfen? Nochmal tippen">Training verwerfen</button>`;
-}
-
-function vUebungen() {
-  const m = exStats(), q = ui.q.trim().toLowerCase();
-  const names = [...m.keys()].filter(n => !q || n.toLowerCase().includes(q))
-    .sort((a, b) => m.get(b)[m.get(b).length - 1].date.localeCompare(m.get(a)[m.get(a).length - 1].date) || a.localeCompare(b, 'de'));
-  const cards = names.map(n => {
-    const L = m.get(n), last = L[L.length - 1], first = L[0], dlt = last.kg - first.kg, bw = !L.some(x => x.kg > 0);
-    const vals = L.map(x => bw ? x.reps : x.kg);
-    return `<button class="ex-card" data-act="exDetail" data-name="${esc(n)}"><div><div class="title">${esc(n)}</div>
-      <div class="small muted">${esc(fmtDay(last.date))} · ${L.length} ${L.length === 1 ? 'Einheit' : 'Einheiten'} ${L.length > 1 && (bw ? last.reps - first.reps : dlt) ? `· <span class="delta ${(bw ? last.reps - first.reps : dlt) < 0 ? 'neg' : ''}">${(bw ? last.reps - first.reps : dlt) > 0 ? '+' : ''}${bw ? last.reps - first.reps + ' Wdh' : fmt(dlt) + ' kg'}</span>` : ''}</div></div>
-      <div class="stat">${bw ? `${last.reps}<small>Wdh</small>` : `${fmt(last.kg)}<small>kg × ${last.reps}</small>`}</div>${spark(vals)}</button>`;
-  }).join('');
-  return `${banner()}${vMuscles()}<div class="section-label">Übungen</div><div class="search"><input id="exq" type="text" data-act-input="q" placeholder="Übung suchen …" value="${esc(ui.q)}" aria-label="Übung suchen"></div>
-    <div class="card" style="padding-block:4px">${cards || `<div class="empty"><strong>${m.size ? 'Keine Treffer' : 'Noch keine Übungen'}</strong>${m.size ? 'Versuch einen anderen Namen.' : 'Sobald du ein Training speicherst, siehst du hier dein Gewicht pro Übung.'}</div>`}</div>`;
 }
 
 const waterGoal = () => profile().goals.water || 3000;
@@ -1526,6 +1527,117 @@ function energyChange(el) {
 }
 function energyInput(el) { if (el.id === 'sp-min' && spc) { spc.min = num(el.value); updSport(); return true; } return false; }
 
+/* ---------- progress: strength, body weight, measurements ---------- */
+const MEASURES = [['brust', 'Brust', 'cm'], ['schultern', 'Schultern', 'cm'], ['bizeps', 'Bizeps', 'cm'], ['unterarm', 'Unterarm', 'cm'], ['taille', 'Taille', 'cm'],
+  ['huefte', 'Hüfte', 'cm'], ['oberschenkel', 'Oberschenkel', 'cm'], ['wade', 'Wade', 'cm'], ['kfa', 'Körperfett', '%']];
+const weightsSorted = () => (profile().weights || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+const measuresSorted = () => (profile().measures || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+const signedKg = (d, u = 'kg') => (d > 0 ? '+' : d < 0 ? '−' : '±') + fmt(Math.abs(d)) + ' ' + u;
+function vUebungen() {
+  const sec = ui.fsec || 'muskeln';
+  const seg = `<div class="seg seg3" role="tablist">${[['muskeln', 'Muskeln'], ['kraft', 'Kraft'], ['koerper', 'Körper']].map(([k, l]) => `<button role="tab" data-act="fsec" data-s="${k}" aria-pressed="${sec === k}">${l}</button>`).join('')}</div>`;
+  return `${banner()}${seg}${sec === 'kraft' ? vKraft() : sec === 'koerper' ? vKoerper() : vMuscles()}`;
+}
+function vKraft() {
+  const m = exStats(), q = ui.q.trim().toLowerCase(), since = shiftKey(todayKey(), -30);
+  const info = [...m.entries()].map(([n, L]) => {
+    const bw = !L.some(x => x.kg > 0), val = x => bw ? x.reps : x.kg;
+    const best = L.reduce((a, x) => val(x) > val(a) || (val(x) === val(a) && x.reps > a.reps) ? x : a, L[0]);
+    const prev = L.slice(0, -1), last = L[L.length - 1];
+    const newPR = prev.length && val(last) > Math.max(...prev.map(val));
+    return { n, L, bw, best, last, newPR, recentPR: L.some((x, i) => i && x.date >= since && val(x) > Math.max(...L.slice(0, i).map(val))) };
+  });
+  const prs = info.filter(x => x.recentPR).length;
+  const rows = info.filter(x => !q || x.n.toLowerCase().includes(q)).sort((a, b) => b.last.date.localeCompare(a.last.date) || a.n.localeCompare(b.n, 'de')).map(x => {
+    const { n, L, bw, best, last } = x;
+    return `<button class="ex-card kraft" data-act="exDetail" data-name="${esc(n)}">${fig(n, 44)}<div style="min-width:0"><div class="title">${esc(n)}${x.newPR ? ' <span class="pill ok" style="padding:1px 7px">Neuer Bestwert</span>' : ''}</div>
+      <div class="small muted">Zuletzt ${bw ? last.reps + ' Wdh' : fmt(last.kg) + ' kg × ' + last.reps} · ${esc(fmtDay(last.date))}${(() => { const dd = bw ? last.reps - L[0].reps : last.kg - L[0].kg; return L.length > 1 && dd ? ` · <span class="delta ${dd < 0 ? 'neg' : ''}">${dd > 0 ? '+' : '−'}${bw ? Math.abs(dd) + ' Wdh' : fmt(Math.abs(dd)) + ' kg'}</span>` : ''; })()}</div></div>
+      <div class="stat">${bw ? `${best.reps}<small>Wdh</small>` : `${fmt(best.kg)}<small>kg</small>`}<div class="statl">Bestwert</div></div></button>`;
+  }).join('');
+  return `${m.size ? `<div class="kraft-sum"><div><b class="big">${m.size}</b><small>Übungen</small></div><div><b class="big" style="color:var(--ok)">${prs}</b><small>neue Bestwerte in 30 Tagen</small></div></div>` : ''}
+    <div class="search"><input id="exq" type="text" data-act-input="q" placeholder="Übung suchen …" value="${esc(ui.q)}" aria-label="Übung suchen"></div>
+    <div class="card" style="padding-block:4px">${rows || `<div class="empty"><strong>${m.size ? 'Keine Treffer' : 'Noch keine Übungen'}</strong>${m.size ? 'Versuch einen anderen Namen.' : 'Sobald du ein Training speicherst, siehst du hier deine Bestwerte pro Übung.'}</div>`}</div>
+    <div class="small muted">Bestwert = schwerstes Gewicht, das du bei der Übung geschafft hast. Tippe auf eine Übung für Verlauf und alle Einheiten.</div>`;
+}
+function weightTrend(W, goalKey) {
+  if (W.length < 2) return null;
+  const last = W[W.length - 1], from = shiftKey(last.date, -28), win = W.filter(x => x.date >= from);
+  const a = win[0], days = (pkey(last.date) - pkey(a.date)) / 864e5;
+  if (win.length < 2 || days < 7) return { rate: null };
+  const rate = (num(last.kg) - num(a.kg)) / (days / 7);
+  const R = { auf: [0.1, 0.5], ab: [-1, -0.25], halten: [-0.2, 0.2] }[goalKey] || [-0.2, 0.2];
+  const verdict = rate < R[0] ? (goalKey === 'ab' ? 'schneller als empfohlen' : goalKey === 'auf' ? 'zu langsam' : 'du nimmst ab') : rate > R[1] ? (goalKey === 'ab' ? 'zu langsam' : goalKey === 'auf' ? 'schneller als empfohlen' : 'du nimmst zu') : 'im Zielbereich';
+  return { rate, verdict, ok: verdict === 'im Zielbereich', R };
+}
+function vKoerper() {
+  const W = weightsSorted(), b = body(), G = GOALS.find(x => x.k === b.goal) || GOALS[1];
+  const range = ui.wRange || '3m', cut = range === '1m' ? shiftKey(todayKey(), -31) : range === '3m' ? shiftKey(todayKey(), -92) : '';
+  const Wr = W.filter(x => x.date >= cut), tr = weightTrend(W, b.goal), last = W[W.length - 1], first = W[0];
+  const weight = `<div class="card"><div class="card-head"><h3>Körpergewicht</h3><button class="link" data-act="wAdd">+ Eintragen</button></div>
+    ${W.length ? `<div class="row spread" style="align-items:flex-end"><div><span class="big">${fmt(num(last.kg))}</span> <span class="muted">kg</span><div class="small muted">Stand: ${esc(fmtDay(last.date))}</div></div>
+      ${W.length > 1 ? `<div style="text-align:right"><div class="kcal-val">${signedKg(num(last.kg) - num(first.kg))}</div><div class="small muted">seit ${esc(fmtDay(first.date))}</div></div>` : ''}</div>
+      ${tr ? `<div class="trend ${tr.rate == null ? '' : tr.ok ? 'ok' : 'warn'}">${tr.rate == null ? 'Trag dein Gewicht ein paar Mal pro Woche ein – ab 7 Tagen siehst du hier deinen Trend.' : `<b>${signedKg(Math.round(tr.rate * 100) / 100)}/Woche</b> (letzte 4 Wochen) · Ziel ${esc(G.label)}: <b>${tr.verdict}</b><div class="small">Empfohlen: ${fmt(tr.R[0])} bis ${fmt(tr.R[1])} kg pro Woche</div>`}</div>` : ''}
+      ${W.length > 1 ? `<div class="chips">${[['1m', '1 Monat'], ['3m', '3 Monate'], ['all', 'Alles']].map(([k, l]) => `<button class="chip" data-act="wRange" data-r="${k}" aria-pressed="${range === k}">${l}</button>`).join('')}</div>
+        ${Wr.length > 1 ? chart(Wr.map(x => ({ date: x.date, kg: num(x.kg) })), 'kg') : '<div class="small muted">Zu wenig Einträge in diesem Zeitraum.</div>'}` : ''}
+      <details class="hist"><summary>Alle Einträge (${W.length})<span class="chev">›</span></summary><div class="list">${W.slice().reverse().map(x => `<div class="item"><div class="grow">${esc(fmtDay(x.date))}</div><span class="kcal-val">${fmt(num(x.kg))} kg</span><button class="icon-btn" data-act="wDel" data-d="${x.date}" data-confirm="Löschen?" aria-label="Eintrag löschen">${ICON_X}</button></div>`).join('')}</div></details>`
+      : '<div class="small muted">Trag regelmäßig dein Gewicht ein, am besten morgens nüchtern. Dann siehst du, wie viel du zu- oder abnimmst – und ob das zu deinem Ziel passt.</div>'}</div>`;
+  const M = measuresSorted(), used = MEASURES.filter(([k]) => M.some(e => e.v && e.v[k] != null));
+  const meas = `<div class="card"><div class="card-head"><h3>Körpermaße</h3><button class="link" data-act="mAdd">+ Messen</button></div>
+    ${used.length ? `<div class="list">${used.map(([k, label, u]) => {
+      const L = M.filter(e => e.v && e.v[k] != null).map(e => ({ date: e.date, val: num(e.v[k]) })), cur = L[L.length - 1], d = cur.val - L[0].val;
+      return `<details class="mdet-d"><summary class="item"><div class="grow"><div class="title">${label}</div><div class="sub">${esc(fmtDay(cur.date))}${L.length > 1 ? ` · seit ${esc(fmtDay(L[0].date))}: <span class="delta ${(k === 'taille' || k === 'kfa' || k === 'huefte') ? (d > 0 ? 'neg' : '') : (d < 0 ? 'neg' : '')}">${signedKg(Math.round(d * 10) / 10, u)}</span>` : ''}</div></div>
+        <span class="kcal-val">${fmt(cur.val)} ${u}</span><span class="chev">›</span></summary>
+        <div class="mdet-body">${L.length > 1 ? chart(L, 'val') : ''}${L.slice().reverse().slice(0, 8).map(x => `<div class="row spread small"><span>${esc(fmtDay(x.date))}</span><span class="row" style="gap:6px"><b>${fmt(x.val)} ${u}</b><button class="icon-btn" data-act="mDel" data-d="${x.date}" data-k="${k}" data-confirm="Löschen?" aria-label="Messung löschen">${ICON_X}</button></span></div>`).join('')}</div></details>`;
+    }).join('')}</div><div class="small muted">Tipp: Miss immer zur gleichen Zeit an der gleichen Stelle – z. B. morgens, Bizeps angespannt an der dicksten Stelle.</div>`
+      : '<div class="small muted">Halte fest, wie sich dein Körper verändert – z. B. Bizeps, Brust, Taille oder Oberschenkel. Besonders beim Aufbauen zeigt das den Fortschritt oft besser als die Waage.</div>'}</div>`;
+  return weight + meas;
+}
+function openWeight() {
+  const W = weightsSorted(), last = W[W.length - 1];
+  openSheet(`<h2>Gewicht eintragen</h2>
+    <div class="grid2"><label class="field">Gewicht (kg)<input id="w-kg" inputmode="decimal" placeholder="${last ? esc(fmt(num(last.kg))) : 'z. B. 78,5'}"></label>
+    <label class="field">Datum<input id="w-date" type="date" value="${todayKey()}" max="${todayKey()}"></label></div>
+    <div class="small muted">Am genauesten: morgens nach dem Aufstehen, vor dem Frühstück.</div>
+    <div class="sheet-actions"><button class="btn ghost" data-act="closeSheet">Abbrechen</button><button class="btn primary" data-act="wSave">Speichern</button></div>`);
+  setTimeout(() => { const i = $('#w-kg'); if (i) i.focus(); }, 60);
+}
+function openMeasure() {
+  const M = measuresSorted(), lastOf = k => { for (let i = M.length - 1; i >= 0; i--) if (M[i].v && M[i].v[k] != null) return M[i].v[k]; return null; };
+  openSheet(`<h2>Körpermaße eintragen</h2>
+    <label class="field">Datum<input id="m-date" type="date" value="${todayKey()}" max="${todayKey()}" style="max-width:180px"></label>
+    <div class="small muted">Füll nur aus, was du gemessen hast. Grau: dein letzter Wert.</div>
+    <div class="grid2">${MEASURES.map(([k, label, u]) => { const l = lastOf(k); return `<label class="field">${label} (${u})<input id="m-${k}" inputmode="decimal" placeholder="${l != null ? esc(fmt(num(l))) : '–'}"></label>`; }).join('')}</div>
+    <div class="sheet-actions"><button class="btn ghost" data-act="closeSheet">Abbrechen</button><button class="btn primary" data-act="mSave">Speichern</button></div>`);
+}
+const progActs = {
+  fsec: el => { ui.fsec = el.dataset.s; try { localStorage.setItem('eisenlog.fsec', ui.fsec); } catch {} render(); },
+  wRange: el => { ui.wRange = el.dataset.r; render(); },
+  wAdd: openWeight,
+  wSave: () => {
+    const kg = num(val('w-kg')), date = val('w-date') || todayKey();
+    if (!(kg > 20 && kg < 400)) { toast('Gib dein Gewicht in kg ein, z. B. 78,5.'); $('#w-kg').focus(); return; }
+    editProfile(p => {
+      p.weights = (p.weights || []).filter(x => x.date !== date); p.weights.push({ date, kg });
+      const latest = p.weights.reduce((a, x) => x.date > a.date ? x : a, p.weights[0]);
+      p.body = { ...body(), weight: String(latest.kg) };
+    });
+    closeSheet(); toast(`${fmt(kg)} kg gespeichert`); render();
+  },
+  wDel: el => { if (!armed(el)) return; const d = el.dataset.d; editProfile(p => { p.weights = (p.weights || []).filter(x => x.date !== d); }); render(); },
+  mAdd: openMeasure,
+  mSave: () => {
+    const date = val('m-date') || todayKey(), v = {};
+    for (const [k] of MEASURES) { const x = num(val('m-' + k)); if (x > 0) v[k] = x; }
+    if (!Object.keys(v).length) { toast('Trag mindestens einen Wert ein.'); return; }
+    editProfile(p => { const M = p.measures = p.measures || []; const e = M.find(x => x.date === date); if (e) e.v = { ...e.v, ...v }; else M.push({ date, v }); });
+    closeSheet(); toast(`${Object.keys(v).length} ${Object.keys(v).length === 1 ? 'Maß' : 'Maße'} gespeichert`); render();
+  },
+  mDel: el => {
+    if (!armed(el)) return; const { d, k } = el.dataset;
+    editProfile(p => { const e = (p.measures || []).find(x => x.date === d); if (e) { delete e.v[k]; if (!Object.keys(e.v).length) p.measures = p.measures.filter(x => x !== e); } }); render();
+  },
+};
+
 /* ---------- food ---------- */
 let recentFoods = [];
 /* ---------- food: AI photo analysis & barcode scanner ---------- */
@@ -1965,7 +2077,7 @@ const acts = {
   },
   rmSupp: el => { if (!armed(el)) return; editProfile(p => { p.supplements = p.supplements.filter(s => s.id !== el.dataset.id); }); render(); },
 };
-Object.assign(acts, edActs, foodActs, energyActs, smActs);
+Object.assign(acts, edActs, foodActs, energyActs, smActs, progActs);
 function goalHint() {
   const el = $('#g-hint'); if (!el) return;
   const k = Math.round(num(val('g-p')) * 4 + num(val('g-c')) * 4 + num(val('g-f')) * 9);
