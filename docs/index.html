@@ -214,7 +214,7 @@ input::placeholder{color:color-mix(in srgb,var(--muted) 70%,transparent)}
 
 /* training editor */
 .exrow{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
-.grid3{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:end}
+.grid3{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:start}
 .grid3 .field{white-space:nowrap}
 .stepper{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:10px;height:44px;background:var(--bg);min-width:112px}
 .stepper button{width:38px;height:100%;border:0;background:none;font-size:22px;font-weight:600;color:var(--accent);padding:0}
@@ -352,6 +352,9 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .savechk input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .savechk .muted{font-weight:500}
 /* progress */
+.maxhint{display:block;font-size:11px;font-weight:600;color:var(--muted);text-align:center;margin-top:2px;line-height:1.2}
+.field .maxhint{text-align:left}
+.kgcell{display:flex;flex-direction:column;min-width:0}
 .maxrow .title{font-weight:600}
 .maxval{font-family:var(--display);font-weight:700;font-size:24px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .maxval small{font-family:var(--body);font-size:12px;font-weight:600;color:var(--muted);margin-left:3px}
@@ -655,6 +658,9 @@ function lastSets(name) {
   for (const w of workouts()) { const e = (w.exercises || []).find(x => x.name === name); if (e && e.sets && e.sets.length) return e.sets; }
   return [];
 }
+// Maximalgewicht je Übung aus allen gespeicherten Trainings
+function maxKgMap() { const m = {}; for (const w of workouts()) for (const e of w.exercises || []) for (const s of e.sets || []) { const k = num(s.kg); if (k > (m[e.name] || 0)) m[e.name] = k; } return m; }
+const maxHint = (M, name) => M[name] ? `<small class="maxhint">${fmt(M[name])} kg</small>` : '';
 const setsLine = sets => sets.map(s => (num(s.kg) ? fmt(num(s.kg)) + ' × ' : 'KG × ') + num(s.reps)).join(' · ');
 const volume = w => (w.exercises || []).reduce((a, e) => a + (e.sets || []).reduce((b, s) => b + num(s.kg) * num(s.reps), 0), 0);
 const setCount = w => (w.exercises || []).reduce((a, e) => a + (e.sets || []).length, 0);
@@ -788,12 +794,13 @@ function vTraining() {
   return `${banner()}${next}${seg}${body}`;
 }
 function vActive(a) {
+  const MX = maxKgMap();
   const exs = a.exercises.map((e, ei) => {
     const prev = lastSets(e.name);
     const rows = e.sets.map((s, si) => {
       const ph = phFor(e, si);
       return `<div class="${s.done ? 'done' : ''}"><span class="n">${si + 1}</span>
-        <input id="w-${ei}-${si}-kg" inputmode="decimal" data-ws="kg" data-e="${ei}" data-s="${si}" value="${esc(s.kg)}" placeholder="${ph.kg !== undefined ? esc(fmt(num(ph.kg))) : 'kg'}" aria-label="Gewicht Satz ${si + 1}">
+        <span class="kgcell"><input id="w-${ei}-${si}-kg" inputmode="decimal" data-ws="kg" data-e="${ei}" data-s="${si}" value="${esc(s.kg)}" placeholder="${ph.kg !== undefined ? esc(fmt(num(ph.kg))) : 'kg'}" aria-label="Gewicht Satz ${si + 1}">${maxHint(MX, e.name)}</span>
         <input id="w-${ei}-${si}-reps" inputmode="numeric" data-ws="reps" data-e="${ei}" data-s="${si}" value="${esc(s.reps)}" placeholder="${ph.reps !== undefined ? esc(ph.reps) : 'Wdh'}" aria-label="Wiederholungen Satz ${si + 1}">
         <button class="tick ${s.done ? 'on' : ''}" data-act="tick" data-e="${ei}" data-s="${si}" aria-label="Satz ${si + 1} erledigt" aria-pressed="${!!s.done}">${ICON_CHECK}</button></div>`;
     }).join('');
@@ -1080,12 +1087,13 @@ function openPlan(id) {
 function openLivePicker() { ed = { type: 'live', view: 'pick', q: '', cat: 'push' }; renderEd(); }
 
 function exEditor(list) {
+  const MX = maxKgMap();
   if (!list.length) return `<div class="empty" style="padding:14px 10px"><strong>Noch keine Übungen</strong>Tippe unten auf „Übungen hinzufügen“.</div>`;
   return `<div class="exlist">${list.map((e, i) => { const prev = lastSets(e.name);
     return `<details class="exd"${ed.openEx === i ? ' open' : ''} data-i="${i}"><summary>${fig(e.name, 48)}<div class="grow"><div class="title">${esc(e.name)}</div><div class="sub" id="ed-sum-${i}">${esc(exSumText(e))}</div></div><span class="chev">›</span></summary>
     <div class="exd-body"><div class="grid3"><label class="field">Sätze<div class="stepper"><button data-act="edSets" data-i="${i}" data-d="-1" aria-label="Weniger Sätze">−</button><span class="num">${e.sets}</span><button data-act="edSets" data-i="${i}" data-d="1" aria-label="Mehr Sätze">+</button></div></label>
       <label class="field">Wdh.<input id="ed-r-${i}" type="text" data-ed="reps" data-i="${i}" value="${esc(e.reps)}" placeholder="8–12"></label>
-      <label class="field">Gewicht kg<input id="ed-k-${i}" inputmode="decimal" data-ed="kg" data-i="${i}" value="${esc(e.kg)}" placeholder="${prev.length ? esc(fmt(num(prev[0].kg))) : 'optional'}"></label></div>
+      <label class="field">Gewicht kg<input id="ed-k-${i}" inputmode="decimal" data-ed="kg" data-i="${i}" value="${esc(e.kg)}" placeholder="${prev.length ? esc(fmt(num(prev[0].kg))) : 'optional'}">${maxHint(MX, e.name)}</label></div>
       ${prev.length ? `<div class="small muted">Letztes Mal: ${esc(setsLine(prev))}</div>` : ''}
       <div class="row" style="gap:4px">${i ? `<button class="btn sm ghost" data-act="edMove" data-i="${i}" data-d="-1">↑ Nach oben</button>` : ''}${i < list.length - 1 ? `<button class="btn sm ghost" data-act="edMove" data-i="${i}" data-d="1">↓ Nach unten</button>` : ''}<button class="btn sm ghost danger" style="margin-left:auto" data-act="edRm" data-i="${i}">Entfernen</button></div></div></details>`; }).join('')}</div>`;
 }
