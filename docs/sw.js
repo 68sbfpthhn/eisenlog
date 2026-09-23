@@ -1,4 +1,4 @@
-const CACHE = 'eisenlog-491cb2f702';
+const CACHE = 'eisenlog-03f5ec6559';
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "vendor/firebase-bundle.js"];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
