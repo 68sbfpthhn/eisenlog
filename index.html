@@ -324,6 +324,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .exd{background:var(--surface);border:1px solid var(--line);border-radius:14px}
 .exd>summary{padding:8px 12px}
 .exd-body{display:flex;flex-direction:column;gap:10px;padding:2px 12px 12px}
+/* saved meals */
+.savechk{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;padding:4px 0}
+.savechk input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+.savechk .muted{font-weight:500}
 /* sheet */
 #sheetBg{position:fixed;inset:0;background:var(--overlay);z-index:20}
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-width:560px;margin:0 auto;max-height:90dvh;overflow:auto;background:var(--surface);border-radius:20px 20px 0 0;padding:10px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain}
@@ -790,10 +794,10 @@ function vEssen() {
       ${fs.length ? `<div class="list">${fs.map(f => `<div class="item"><div class="grow"><div class="title">${esc(f.name)}</div>
         <div class="sub num"><i class="dot p"></i>${fmtInt(num(f.p))} g <i class="dot c" style="margin-left:6px"></i>${fmtInt(num(f.c))} g <i class="dot f" style="margin-left:6px"></i>${fmtInt(num(f.f))} g</div></div>
         <span class="kcal-val">${fmtInt(num(f.kcal))}</span><button class="icon-btn" data-act="rmFood" data-id="${f.id}" aria-label="${esc(f.name)} entfernen">${ICON_X}</button></div>`).join('')}</div>` : ''}
-      <button class="btn sm soft" data-act="food" data-meal="${meal}">+ Hinzufügen</button></div>`;
+      <div class="row wrapflex" style="gap:8px"><button class="btn sm soft" data-act="food" data-meal="${meal}">+ Hinzufügen</button>${fs.length ? `<button class="btn sm ghost" style="color:var(--accent)" data-act="smFromSlot" data-meal="${meal}">Als Mahlzeit speichern</button>` : ''}</div></div>`;
   }).join('');
   return `${banner()}${datenav()}<div class="card"><div class="kcal">${ring(tot.kcal, g.kcal)}${macroBars(tot, g)}</div>
-      <div class="row spread"><span class="small muted num">${fmtInt(tot.kcal)} von ${fmtInt(g.kcal)} kcal</span><button class="link" data-act="profil">Bedarf & Profil</button></div>${needLine(g)}</div>${moveCard(ui.date)}${waterCard(ui.date)}${meals}`;
+      <div class="row spread"><span class="small muted num">${fmtInt(tot.kcal)} von ${fmtInt(g.kcal)} kcal</span><button class="link" data-act="profil">Bedarf & Profil</button></div>${needLine(g)}</div>${savedCard()}${moveCard(ui.date)}${waterCard(ui.date)}${meals}`;
 }
 
 function vSupps() {
@@ -1565,7 +1569,7 @@ function renderAi() {
         <div class="grow"><input class="ainame" id="ai-n-${i}" data-ain="${i}" value="${esc(it.name)}" aria-label="Name">
           <div class="row spread"><div class="sub num" id="ai-m-${i}">${macroLine(v)}</div><div class="row" style="gap:8px"><label class="aig"><input id="ai-g-${i}" inputmode="decimal" data-aig="${i}" value="${it.grams}" aria-label="Menge in Gramm"><span>g</span></label><b class="kcal-val" id="ai-k-${i}" style="min-width:34px;text-align:right">${v.kcal}</b></div></div></div></div>`; }).join('')}</div>
       <div class="row spread small"><span class="muted">Mengen kannst du anpassen – die Werte rechnen mit.</span><b id="ai-tot">${t.kcal} kcal</b></div>
-      ${mealSelect()}
+      ${mealSelect()}${saveChk('ai-savemeal')}
       <div class="sheet-actions"><label class="btn ghost" for="ai-file">Anderes Foto</label><button class="btn primary" data-act="aiSave" id="ai-save">Übernehmen (${t.n})</button></div>`
       : `<div class="err">${esc(A.hinweis || 'Kein Essen erkannt.')}</div><label class="btn soft" for="ai-file">Anderes Foto wählen</label>`;
   } else {
@@ -1647,7 +1651,7 @@ function renderProduct() {
       <label class="field">Wie viel hast du gegessen?<div class="row"><input id="pg" inputmode="decimal" value="${P.grams}" style="max-width:120px"><span class="muted">g / ml</span></div></label>
       <div class="chips">${P.serving ? `<button class="chip" data-act="pgSet" data-g="${P.serving}">1 Portion${P.servingLabel ? ' (' + esc(P.servingLabel) + ')' : ''}</button>` : ''}${[50, 100, 150, 250].map(g => `<button class="chip" data-act="pgSet" data-g="${g}">${g} g</button>`).join('')}</div>
       <div class="pcalc"><div class="big" id="pr-k">${v.kcal}</div><span class="muted">kcal</span><div class="sub num" id="pr-m" style="margin-left:auto">${macroLine(v)}</div></div>
-      ${mealSelect()}
+      ${mealSelect()}${saveChk('pr-savemeal')}
       <div class="sheet-actions"><button class="btn ghost" data-act="scanOpen">Nochmal scannen</button><button class="btn primary" data-act="prodSave">Eintragen</button></div>`;
   }
   openSheet(`${backLink()}${body}`, 'food');
@@ -1663,9 +1667,11 @@ const foodActs = {
   scanOpen: () => { keepMeal(); fctx.view = 'scan'; renderScan(); },
   aiRun: runAi,
   aiSave: () => { const on = fctx.ai.items.filter(i => i.on && i.name.trim()); if (!on.length) { toast('Wähle mindestens einen Eintrag aus.'); return; }
-    foodDone(on.map(it => ({ name: `${it.name.trim()} (${it.grams} g)`, ...itemVals(it) }))); },
+    const entries = on.map(it => ({ name: `${it.name.trim()} (${it.grams} g)`, ...itemVals(it) }));
+    if ($('#ai-savemeal') && $('#ai-savemeal').checked) saveMeal(on.map(it => it.name.trim()).join(' + '), entries);
+    foodDone(entries); },
   pgSet: el => { $('#pg').value = el.dataset.g; fctx.prod.grams = num(el.dataset.g); updProd(); },
-  prodSave: () => { const P = fctx.prod; if (!(num(P.grams) > 0)) { toast('Gib die Menge in Gramm ein.'); return; } foodDone([{ name: `${P.name} (${fmt(num(P.grams))} g)`, ...prodVals() }]); },
+  prodSave: () => { const P = fctx.prod; if (!(num(P.grams) > 0)) { toast('Gib die Menge in Gramm ein.'); return; } const e = { name: `${P.name} (${fmt(num(P.grams))} g)`, ...prodVals() }; if ($('#pr-savemeal') && $('#pr-savemeal').checked) saveMeal(e.name, [e]); foodDone([e]); },
 };
 function updProd() { const v = prodVals(); $('#pr-k').textContent = v.kcal; $('#pr-m').innerHTML = macroLine(v); }
 function updAi(i) {
@@ -1690,6 +1696,94 @@ function foodChange(el) {
 }
 document.addEventListener('submit', e => { if (e.target.id === 'bc-form') { e.preventDefault(); lookupBarcode(val('bc-in')); } });
 
+/* ---------- saved meals ---------- */
+const savedMeals = () => profile().savedMeals || [];
+const mealTot = m => totals(m.items || []);
+const r1 = n => Math.round(n * 10) / 10;
+const slotNow = () => { const h = new Date().getHours(); return h < 11 ? 'Frühstück' : h < 15 ? 'Mittagessen' : h < 18 ? 'Snacks' : 'Abendessen'; };
+const macroShort = t => `P ${fmtInt(num(t.p))} · K ${fmtInt(num(t.c))} · F ${fmtInt(num(t.f))}`;
+function saveMeal(name, items) {
+  name = String(name || '').trim().slice(0, 60) || 'Meine Mahlzeit';
+  const clean = items.map(i => ({ name: String(i.name), kcal: Math.round(num(i.kcal)), p: r1(num(i.p)), c: r1(num(i.c)), f: r1(num(i.f)) }));
+  editProfile(p => {
+    p.savedMeals = (p.savedMeals || []).filter(m => m.name.toLowerCase() !== name.toLowerCase());
+    p.savedMeals.unshift({ id: 'm' + rid(), name, items: clean });
+    if (p.savedMeals.length > 60) p.savedMeals.length = 60;
+  });
+  return name;
+}
+function addSavedMeal(id, k, slot, factor = 1) {
+  const m = savedMeals().find(x => x.id === id); if (!m) return;
+  const t = mealTot(m), F = factor;
+  const entry = { id: rid(), meal: slot, name: m.name + (F !== 1 ? ` (${fmt(F)}×)` : ''), kcal: Math.round(t.kcal * F), p: r1(t.p * F), c: r1(t.c * F), f: r1(t.f * F), from: m.id };
+  editDay(k, d => d.foods.push(entry)); render();
+  toast(`${m.name} eingetragen · ${fmtInt(entry.kcal)} kcal`, { label: 'Rückgängig', fn: () => { editDay(k, d => { d.foods = d.foods.filter(x => x.id !== entry.id); }); render(); } });
+}
+function savedCard() {
+  const M = savedMeals(), shown = ui.smAll ? M : M.slice(0, 5);
+  return `<div class="card"><div class="card-head"><h3>Gespeicherte Mahlzeiten</h3><button class="link" data-act="smNew">+ Neu</button></div>
+    ${M.length ? `<div class="list">${shown.map(m => { const t = mealTot(m); return `<div class="item"><button class="tap" data-act="smOpen" data-id="${m.id}" style="flex:1;min-width:0"><div class="grow"><div class="title">${esc(m.name)}</div>
+      <div class="sub num">${fmtInt(t.kcal)} kcal · ${macroShort(t)}${m.items.length > 1 ? ` · ${m.items.length} Teile` : ''}</div></div></button>
+      <button class="pktog" data-act="smAdd" data-id="${m.id}" aria-label="${esc(m.name)} eintragen">+</button></div>`; }).join('')}</div>
+      ${M.length > 5 ? `<button class="link" style="align-self:flex-start" data-act="smAll">${ui.smAll ? 'Weniger anzeigen' : `Alle ${M.length} anzeigen`}</button>` : ''}`
+    : '<div class="small muted">Speichere Mahlzeiten, die du oft isst – z. B. dein Frühstück. Beim Eintragen gibt es dafür das Häkchen „Als Mahlzeit speichern“, oder tippe unter einer Mahlzeit des Tages auf „Als Mahlzeit speichern“.</div>'}</div>`;
+}
+let smc = null;
+function openSavedMeal(id) {
+  const m = savedMeals().find(x => x.id === id); if (!m) return;
+  smc = { id, factor: 1, slot: slotNow(), k: ui.tab === 'essen' ? ui.date : todayKey(), name: m.name };
+  renderSM();
+}
+function renderSM() {
+  const m = savedMeals().find(x => x.id === smc.id); if (!m) { closeSheet(); return; }
+  const t = mealTot(m), F = smc.factor;
+  openSheet(`<div class="eyebrow">Gespeicherte Mahlzeit</div>
+    <label class="field">Name<input id="sm-name" type="text" value="${esc(smc.name)}" autocomplete="off"></label>
+    <div class="list">${m.items.map(i => `<div class="item"><div class="grow"><div class="title">${esc(i.name)}</div><div class="sub num">${macroShort({ p: num(i.p) * F, c: num(i.c) * F, f: num(i.f) * F })}</div></div><span class="kcal-val">${fmtInt(num(i.kcal) * F)}</span></div>`).join('')}</div>
+    <div class="field" style="gap:8px">Portion<div class="seg seg4">${[0.5, 1, 1.5, 2].map(x => `<button data-act="smF" data-f="${x}" aria-pressed="${F === x}">${x === 0.5 ? '½' : x === 1.5 ? '1½' : x}×</button>`).join('')}</div></div>
+    <div class="pcalc"><div class="big">${fmtInt(t.kcal * F)}</div><span class="muted">kcal</span><div class="sub num" style="margin-left:auto">${macroLine({ p: r1(t.p * F), c: r1(t.c * F), f: r1(t.f * F) })}</div></div>
+    <label class="field">Mahlzeit<select id="sm-slot">${MEALS.map(x => `<option ${x === smc.slot ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+    <div class="sheet-actions"><button class="btn danger" data-act="smDel" data-confirm="Wirklich löschen?">Löschen</button><button class="btn primary" data-act="smEat">Eintragen</button></div>`, 'sm');
+}
+function renameSM() { const nm = val('sm-name'); if (nm && smc && nm !== (savedMeals().find(x => x.id === smc.id) || {}).name) editProfile(p => { const x = (p.savedMeals || []).find(y => y.id === smc.id); if (x) x.name = nm.slice(0, 60); }); }
+const smActs = {
+  smAdd: el => addSavedMeal(el.dataset.id, ui.tab === 'essen' ? ui.date : todayKey(), slotNow()),
+  smQuick: el => { const slot = $('#f-meal').value, k = fctx.k; closeSheet(); addSavedMeal(el.dataset.id, k, slot); },
+  smOpen: el => openSavedMeal(el.dataset.id),
+  smAll: () => { ui.smAll = !ui.smAll; render(); },
+  smF: el => { smc.name = val('sm-name') || smc.name; smc.slot = $('#sm-slot').value; smc.factor = num(el.dataset.f); renderSM(); },
+  smEat: () => { renameSM(); const { id, k, factor } = smc, slot = $('#sm-slot').value; closeSheet(); addSavedMeal(id, k, slot, factor); },
+  smDel: el => { if (!armed(el)) return; const id = smc.id; editProfile(p => { p.savedMeals = (p.savedMeals || []).filter(x => x.id !== id); }); closeSheet(); toast('Mahlzeit gelöscht'); render(); },
+  smNew: () => openSheet(`<h2>Neue Mahlzeit speichern</h2>
+    <label class="field">Name<input id="sn-name" type="text" placeholder="z. B. Mein Frühstück" autocomplete="off"></label>
+    <label class="field">Kalorien (kcal)<input id="sn-kcal" inputmode="decimal" placeholder="0"></label>
+    <div class="grid2" style="grid-template-columns:repeat(3,1fr)"><label class="field"><span><i class="dot p"></i>Protein g</span><input id="sn-p" inputmode="decimal" placeholder="0"></label>
+      <label class="field"><span><i class="dot c"></i>Kohlenh. g</span><input id="sn-c" inputmode="decimal" placeholder="0"></label>
+      <label class="field"><span><i class="dot f"></i>Fett g</span><input id="sn-f" inputmode="decimal" placeholder="0"></label></div>
+    <div class="small muted">Tipp: Mahlzeiten aus mehreren Teilen speicherst du am einfachsten, indem du sie einmal einträgst und dann unter der Mahlzeit auf „Als Mahlzeit speichern“ tippst.</div>
+    <div class="sheet-actions"><button class="btn ghost" data-act="closeSheet">Abbrechen</button><button class="btn primary" data-act="smCreate">Speichern</button></div>`),
+  smCreate: () => {
+    const name = val('sn-name'), p = num(val('sn-p')), c = num(val('sn-c')), f = num(val('sn-f')), kcal = num(val('sn-kcal')) || Math.round(p * 4 + c * 4 + f * 9);
+    if (!name) { toast('Gib der Mahlzeit einen Namen.'); $('#sn-name').focus(); return; }
+    if (!kcal) { toast('Trag Kalorien oder Makros ein.'); return; }
+    saveMeal(name, [{ name, kcal, p, c, f }]); closeSheet(); toast(`„${name}“ gespeichert`); render();
+  },
+  smFromSlot: el => {
+    const slot = el.dataset.meal, fs = (day(ui.date).foods || []).filter(x => (x.meal || 'Snacks') === slot);
+    if (!fs.length) return;
+    const t = totals(fs), def = fs.length === 1 ? fs[0].name : slot;
+    smc = { slot, items: fs };
+    openSheet(`<h2>Als Mahlzeit speichern</h2>
+      <label class="field">Name<input id="ss-name" type="text" value="${esc(def)}" autocomplete="off"></label>
+      <div class="list">${fs.map(i => `<div class="item"><div class="grow"><div class="title">${esc(i.name)}</div><div class="sub num">${macroShort(i)}</div></div><span class="kcal-val">${fmtInt(num(i.kcal))}</span></div>`).join('')}</div>
+      <div class="pcalc"><div class="big">${fmtInt(t.kcal)}</div><span class="muted">kcal gesamt</span><div class="sub num" style="margin-left:auto">${macroLine(t)}</div></div>
+      <div class="sheet-actions"><button class="btn ghost" data-act="closeSheet">Abbrechen</button><button class="btn primary" data-act="smSaveSlot">Speichern</button></div>`);
+    setTimeout(() => { const n = $('#ss-name'); if (n) n.select(); }, 60);
+  },
+  smSaveSlot: () => { const name = saveMeal(val('ss-name'), smc.items); closeSheet(); toast(`„${name}“ gespeichert – du findest sie unter „Gespeicherte Mahlzeiten“`); render(); },
+};
+const saveChk = id => `<label class="savechk"><input id="${id}" type="checkbox"> Als Mahlzeit speichern <span class="muted">– zum schnellen Wiedereintragen</span></label>`;
+
 function openFood(meal) {
   if (!meal) { const h = new Date().getHours(); meal = h < 11 ? 'Frühstück' : h < 15 ? 'Mittagessen' : h < 18 ? 'Snacks' : 'Abendessen'; }
   const seen = new Set(); recentFoods = [];
@@ -1699,6 +1793,7 @@ function openFood(meal) {
   stopScan(); fctx = { meal, k: ui.tab === 'essen' ? ui.date : todayKey(), view: 'form' };
   openSheet(`<div><div class="eyebrow">${esc(fmtDay(fctx.k))}</div><h2>Essen eintragen</h2></div>
     ${foodTools()}
+    ${savedMeals().length ? `<div class="small muted">Gespeicherte Mahlzeiten – antippen zum Eintragen</div><div class="chips">${savedMeals().slice(0, 10).map(m => `<button class="chip" data-act="smQuick" data-id="${m.id}">${esc(m.name)} <span class="muted">${fmtInt(mealTot(m).kcal)}</span></button>`).join('')}</div>` : ''}
     ${recentFoods.length ? `<div class="small muted">Zuletzt gegessen – antippen zum Übernehmen</div><div class="chips">${recentFoods.map((f, i) => `<button class="chip" data-act="quickFood" data-i="${i}">${esc(f.name)} <span class="muted">${fmtInt(num(f.kcal))}</span></button>`).join('')}</div>` : ''}
     <label class="field">Lebensmittel<input id="f-name" type="text" placeholder="z. B. Magerquark 250 g" autocomplete="off"></label>
     <label class="field">Kalorien (kcal)<input id="f-kcal" inputmode="decimal" placeholder="0"></label>
@@ -1706,6 +1801,7 @@ function openFood(meal) {
       <label class="field"><span><i class="dot c"></i>Kohlenh. g</span><input id="f-c" inputmode="decimal" placeholder="0"></label>
       <label class="field"><span><i class="dot f"></i>Fett g</span><input id="f-f" inputmode="decimal" placeholder="0"></label></div>
     <label class="field">Mahlzeit<select id="f-meal">${MEALS.map(m => `<option ${m === meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+    ${saveChk('f-save')}
     <div class="small muted" id="f-hint"></div>
     <div class="sheet-actions"><button class="btn ghost" data-act="closeSheet">Abbrechen</button><button class="btn primary" data-act="foodSave">Eintragen</button></div>`, 'food');
 }
@@ -1715,8 +1811,10 @@ function saveFood() {
   if (!name) { toast('Gib dem Eintrag einen Namen.'); $('#f-name').focus(); return; }
   if (!kcal) { toast('Trag Kalorien oder Makros ein.'); $('#f-kcal').focus(); return; }
   const k = fctx ? fctx.k : ui.tab === 'essen' ? ui.date : todayKey();
+  const save = $('#f-save') && $('#f-save').checked;
   editDay(k, d => d.foods.push({ id: rid(), meal: $('#f-meal').value, name, kcal, p, c, f }));
-  closeSheet(); toast(`${name} eingetragen · ${fmtInt(kcal)} kcal`); render();
+  if (save) saveMeal(name, [{ name, kcal, p, c, f }]);
+  closeSheet(); toast(save ? `${name} eingetragen und als Mahlzeit gespeichert` : `${name} eingetragen · ${fmtInt(kcal)} kcal`); render();
 }
 
 /* ---------- events ---------- */
@@ -1832,7 +1930,7 @@ const acts = {
   },
   rmSupp: el => { if (!armed(el)) return; editProfile(p => { p.supplements = p.supplements.filter(s => s.id !== el.dataset.id); }); render(); },
 };
-Object.assign(acts, edActs, foodActs, energyActs);
+Object.assign(acts, edActs, foodActs, energyActs, smActs);
 function goalHint() {
   const el = $('#g-hint'); if (!el) return;
   const k = Math.round(num(val('g-p')) * 4 + num(val('g-c')) * 4 + num(val('g-f')) * 9);
