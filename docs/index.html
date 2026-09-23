@@ -352,6 +352,9 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .savechk input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .savechk .muted{font-weight:500}
 /* progress */
+.maxrow .title{font-weight:600}
+.maxval{font-family:var(--display);font-weight:700;font-size:24px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.maxval small{font-family:var(--body);font-size:12px;font-weight:600;color:var(--muted);margin-left:3px}
 .ex-card.kraft{grid-template-columns:auto 1fr auto;column-gap:12px;padding:12px 0}
 .ex-card.kraft svg{grid-column:1/-1}
 .ex-card .statl{font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:2px}
@@ -1535,29 +1538,23 @@ const measuresSorted = () => (profile().measures || []).slice().sort((a, b) => a
 const signedKg = (d, u = 'kg') => (d > 0 ? '+' : d < 0 ? '−' : '±') + fmt(Math.abs(d)) + ' ' + u;
 function vUebungen() {
   const sec = ui.fsec || 'muskeln';
-  const seg = `<div class="seg seg3" role="tablist">${[['muskeln', 'Muskeln'], ['kraft', 'Kraft'], ['koerper', 'Körper']].map(([k, l]) => `<button role="tab" data-act="fsec" data-s="${k}" aria-pressed="${sec === k}">${l}</button>`).join('')}</div>`;
+  const seg = `<div class="seg seg3" role="tablist">${[['muskeln', 'Muskeln'], ['kraft', 'Gewichte'], ['koerper', 'Körper']].map(([k, l]) => `<button role="tab" data-act="fsec" data-s="${k}" aria-pressed="${sec === k}">${l}</button>`).join('')}</div>`;
   return `${banner()}${seg}${sec === 'kraft' ? vKraft() : sec === 'koerper' ? vKoerper() : vMuscles()}`;
 }
 function vKraft() {
-  const m = exStats(), q = ui.q.trim().toLowerCase(), since = shiftKey(todayKey(), -30);
-  const info = [...m.entries()].map(([n, L]) => {
-    const bw = !L.some(x => x.kg > 0), val = x => bw ? x.reps : x.kg;
-    const best = L.reduce((a, x) => val(x) > val(a) || (val(x) === val(a) && x.reps > a.reps) ? x : a, L[0]);
-    const prev = L.slice(0, -1), last = L[L.length - 1];
-    const newPR = prev.length && val(last) > Math.max(...prev.map(val));
-    return { n, L, bw, best, last, newPR, recentPR: L.some((x, i) => i && x.date >= since && val(x) > Math.max(...L.slice(0, i).map(val))) };
+  const m = exStats(), q = ui.q.trim().toLowerCase();
+  // Pro Übung nur das Maximalgewicht (bei Körpergewichtsübungen: max. Wiederholungen)
+  const best = [...m.entries()].filter(([n]) => !q || n.toLowerCase().includes(q)).map(([n, L]) => {
+    const bw = !L.some(x => x.kg > 0);
+    return { n, bw, v: Math.max(...L.map(x => bw ? x.reps : x.kg)), cat: (catGroupOf(n) || { c: { id: 'x', name: 'Weitere' } }).c };
   });
-  const prs = info.filter(x => x.recentPR).length;
-  const rows = info.filter(x => !q || x.n.toLowerCase().includes(q)).sort((a, b) => b.last.date.localeCompare(a.last.date) || a.n.localeCompare(b.n, 'de')).map(x => {
-    const { n, L, bw, best, last } = x;
-    return `<button class="ex-card kraft" data-act="exDetail" data-name="${esc(n)}">${fig(n, 44)}<div style="min-width:0"><div class="title">${esc(n)}${x.newPR ? ' <span class="pill ok" style="padding:1px 7px">Neuer Bestwert</span>' : ''}</div>
-      <div class="small muted">Zuletzt ${bw ? last.reps + ' Wdh' : fmt(last.kg) + ' kg × ' + last.reps} · ${esc(fmtDay(last.date))}${(() => { const dd = bw ? last.reps - L[0].reps : last.kg - L[0].kg; return L.length > 1 && dd ? ` · <span class="delta ${dd < 0 ? 'neg' : ''}">${dd > 0 ? '+' : '−'}${bw ? Math.abs(dd) + ' Wdh' : fmt(Math.abs(dd)) + ' kg'}</span>` : ''; })()}</div></div>
-      <div class="stat">${bw ? `${best.reps}<small>Wdh</small>` : `${fmt(best.kg)}<small>kg</small>`}<div class="statl">Bestwert</div></div></button>`;
-  }).join('');
-  return `${m.size ? `<div class="kraft-sum"><div><b class="big">${m.size}</b><small>Übungen</small></div><div><b class="big" style="color:var(--ok)">${prs}</b><small>neue Bestwerte in 30 Tagen</small></div></div>` : ''}
-    <div class="search"><input id="exq" type="text" data-act-input="q" placeholder="Übung suchen …" value="${esc(ui.q)}" aria-label="Übung suchen"></div>
-    <div class="card" style="padding-block:4px">${rows || `<div class="empty"><strong>${m.size ? 'Keine Treffer' : 'Noch keine Übungen'}</strong>${m.size ? 'Versuch einen anderen Namen.' : 'Sobald du ein Training speicherst, siehst du hier deine Bestwerte pro Übung.'}</div>`}</div>
-    <div class="small muted">Bestwert = schwerstes Gewicht, das du bei der Übung geschafft hast. Tippe auf eine Übung für Verlauf und alle Einheiten.</div>`;
+  const order = [...CATS.map(c => c.id), 'x'];
+  const groups = order.map(id => best.filter(x => x.cat.id === id).sort((a, b) => a.n.localeCompare(b.n, 'de'))).filter(g => g.length);
+  const rows = groups.map(g => `<div class="section-label" style="margin:10px 0 2px">${esc(g[0].cat.name)}</div>
+    <div class="card" style="padding-block:2px">${g.map(x => `<div class="item maxrow">${fig(x.n, 40)}<div class="grow"><div class="title">${esc(x.n)}</div></div><span class="maxval">${x.bw ? `${x.v}<small>Wdh</small>` : `${fmt(x.v)}<small>kg</small>`}</span></div>`).join('')}</div>`).join('');
+  return `<div class="card"><h3>Gewichte</h3><div class="small muted">Dein Maximalgewicht pro Übung – das schwerste Gewicht, das du bisher geschafft hast. Bei Übungen mit Körpergewicht: die meisten Wiederholungen.</div>
+      ${m.size > 8 ? `<input id="exq" type="text" data-act-input="q" placeholder="Übung suchen …" value="${esc(ui.q)}" aria-label="Übung suchen">` : ''}</div>
+    ${rows || `<div class="card"><div class="empty"><strong>${m.size ? 'Keine Treffer' : 'Noch keine Gewichte'}</strong>${m.size ? 'Versuch einen anderen Namen.' : 'Sobald du ein Training speicherst, steht hier dein Maximalgewicht pro Übung.'}</div></div>`}`;
 }
 function weightTrend(W, goalKey) {
   if (W.length < 2) return null;
