@@ -784,7 +784,7 @@ function vActive(a) {
     }).join('');
     return `<section class="card ex"><div class="card-head"><div class="row" style="min-width:0">${fig(e.name, 52)}<div style="min-width:0"><h3>${esc(e.name)}</h3>${e.target ? `<div class="small muted">Ziel ${esc(e.target)}</div>` : ''}</div></div>
       <button class="icon-btn" data-act="rmEx" data-e="${ei}" data-confirm="Entfernen?" aria-label="Übung entfernen">${ICON_X}</button></div>
-      ${prev.length ? `<div class="last">Letztes Mal: <span class="setline">${esc(setsLine(prev))}</span></div>` : ''}
+      ${MX[e.name] ? `<div class="last">Bestleistung: <b>${fmt(MX[e.name])} kg</b></div>` : ''}
       <div class="sets"><span class="h">Satz</span><span class="h">kg</span><span class="h">Wdh</span><span class="h">✓</span>${rows}</div>
       <div class="row"><button class="btn sm soft" data-act="addSet" data-e="${ei}">+ Satz</button>${e.sets.length > 1 ? `<button class="btn sm ghost" data-act="rmSet" data-e="${ei}">Letzten Satz entfernen</button>` : ''}</div></section>`;
   }).join('');
@@ -1072,7 +1072,7 @@ function exEditor(list) {
     <div class="exd-body"><div class="grid3"><label class="field">Sätze<div class="stepper"><button data-act="edSets" data-i="${i}" data-d="-1" aria-label="Weniger Sätze">−</button><span class="num">${e.sets}</span><button data-act="edSets" data-i="${i}" data-d="1" aria-label="Mehr Sätze">+</button></div></label>
       <label class="field">Wdh.<input id="ed-r-${i}" type="text" data-ed="reps" data-i="${i}" value="${esc(e.reps)}" placeholder="8–12"></label>
       <label class="field">Gewicht kg<input id="ed-k-${i}" inputmode="decimal" data-ed="kg" data-i="${i}" value="${esc(e.kg)}" placeholder="${prev.length ? esc(fmt(num(prev[0].kg))) : 'optional'}">${maxHint(MX, e.name)}</label></div>
-      ${prev.length ? `<div class="small muted">Letztes Mal: ${esc(setsLine(prev))}</div>` : ''}
+      ${MX[e.name] ? `<div class="small muted">Bestleistung: <b>${fmt(MX[e.name])} kg</b></div>` : ''}
       <div class="row" style="gap:4px">${i ? `<button class="btn sm ghost" data-act="edMove" data-i="${i}" data-d="-1">↑ Nach oben</button>` : ''}${i < list.length - 1 ? `<button class="btn sm ghost" data-act="edMove" data-i="${i}" data-d="1">↓ Nach unten</button>` : ''}<button class="btn sm ghost danger" style="margin-left:auto" data-act="edRm" data-i="${i}">Entfernen</button></div></div></details>`; }).join('')}</div>`;
 }
 function pickHave() { return new Set(ed.type === 'live' ? (active() || { exercises: [] }).exercises.map(e => e.name) : curList().map(e => e.name)); }
