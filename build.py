@@ -12,12 +12,14 @@ head, content = rest[:head_end], rest[head_end:]
 cfg_file = root / 'firebase-config.json'
 cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else None
 version = hashlib.sha1((body + json.dumps(cfg)).encode()).hexdigest()[:10]
-vendor = ['firebase-app-compat.js', 'firebase-auth-compat.js', 'firebase-firestore-compat.js']
+vendor = ['firebase-bundle.js']  # zxing.js wird bei Bedarf nachgeladen
 firebase_tags = ''
 if cfg:
     (dist / 'vendor').mkdir(exist_ok=True)
-    for f in vendor:
+    for f in vendor + ['zxing.js']:
         shutil.copy(root / 'vendor' / f, dist / 'vendor' / f)
+    for old in (dist / 'vendor').glob('firebase-*-compat.js'):
+        old.unlink()
     firebase_tags = '\n'.join(f'<script src="vendor/{f}"></script>' for f in vendor)
     firebase_tags += f'\n<script>window.EISENLOG_FIREBASE = {json.dumps(cfg)};</script>'
 elif (dist / 'vendor').exists():

@@ -23,3 +23,10 @@ Firebase → **Authentication → Einstellungen → Autorisierte Domains** → `
 - **Android:** Link in Chrome öffnen → Menü ⋮ → „App installieren“
 
 Jede Person erstellt in der App ihr eigenes Konto und sieht nur ihre eigenen Daten.
+
+## KI-Foto-Analyse (Firebase AI Logic)
+Firebase → **KI-Dienste → AI Logic** → **Jetzt starten** → **Gemini Developer API** auswählen und aktivieren (kostenlos im Spark-Tarif).
+Die App nutzt das Modell `gemini-3.6-flash` (Ersatz: `gemini-2.5-flash`), eingestellt in `index.html` unter `AI_MODELS`.
+
+## Barcode-Scanner
+Produktdaten kommen aus der freien Datenbank Open Food Facts (keine Einrichtung nötig). Der Scanner (`vendor/zxing.js`) wird erst beim ersten Scannen geladen.

@@ -1,0 +1,1 @@
+Firebase 12.19.0 + ZXing 0.2.1, gebündelt mit esbuild.
