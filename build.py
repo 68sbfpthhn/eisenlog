@@ -11,7 +11,7 @@ head_end = rest.index('</style>') + len('</style>')
 head, content = rest[:head_end], rest[head_end:]
 cfg_file = root / 'firebase-config.json'
 cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else None
-version = hashlib.sha1((body + json.dumps(cfg)).encode()).hexdigest()[:10]
+version = hashlib.sha1((body + json.dumps(cfg) + pathlib.Path(__file__).read_text()).encode()).hexdigest()[:10]
 vendor = ['firebase-bundle.js']  # zxing.js wird bei Bedarf nachgeladen
 firebase_tags = ''
 if cfg:
@@ -90,7 +90,7 @@ self.addEventListener('fetch', e => {{
   const url = new URL(req.url);
   // Seite selbst: erst Netz (für Updates), offline aus dem Cache
   if (req.mode === 'navigate') {{
-    e.respondWith(fetch(req).then(r => {{ const c = r.clone(); caches.open(CACHE).then(x => x.put('index.html', c)); return r; }})
+    e.respondWith(fetch(req, {{ cache: 'no-cache' }}).then(r => {{ const c = r.clone(); caches.open(CACHE).then(x => x.put('index.html', c)); return r; }})
       .catch(() => caches.match('index.html')));
     return;
   }}
