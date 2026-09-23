@@ -229,6 +229,21 @@ input::placeholder{color:color-mix(in srgb,var(--muted) 70%,transparent)}
 .glasses i{height:30px;border:2px solid var(--line);border-top:0;border-radius:3px 3px 7px 7px;clip-path:polygon(0 0,100% 0,88% 100%,12% 100%);background:transparent}
 .glasses i.on{background:var(--accent);border-color:var(--accent)}
 .meter.water b{background:var(--accent)}
+/* training overview */
+.seg.seg3{grid-template-columns:repeat(3,1fr)}
+.next.compact{gap:6px}
+.next.compact h2{font-size:26px}
+.next.compact .btn{flex:none}
+.tgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ttile{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;min-height:92px}
+.ttile strong{font-family:var(--display);font-weight:600;font-size:22px;line-height:1.1;overflow-wrap:anywhere}
+.ttile .sub{font-size:13px;color:var(--muted);margin-top:auto}
+.ttile .eyebrow{font-size:11px}
+.ttile.add{border-style:dashed;background:transparent;justify-content:center}
+.ttile.add strong{color:var(--accent);font-size:19px}
+.n-badge{width:26px;height:26px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--muted);flex:none}
+.pickrow{display:flex;align-items:center;border-top:1px solid var(--line)}
+.pickrow .pick{border-top:0;flex:1;min-width:0}
 /* sheet */
 #sheetBg{position:fixed;inset:0;background:var(--overlay);z-index:20}
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-width:560px;margin:0 auto;max-height:90dvh;overflow:auto;background:var(--surface);border-radius:20px 20px 0 0;padding:10px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;overscroll-behavior:contain}
@@ -517,6 +532,7 @@ function knownExercises() {
   const s = new Set();
   for (const p of profile().plans) for (const d of p.days) for (const e of d.exercises) if (e.name) s.add(e.name);
   for (const t of profile().templates || []) for (const e of t.exercises) if (e.name) s.add(e.name);
+  for (const c of profile().customExercises || []) s.add(c.name);
   for (const w of workouts()) for (const e of w.exercises || []) s.add(e.name);
   return [...s].sort((a, b) => a.localeCompare(b, 'de'));
 }
@@ -569,7 +585,8 @@ const datenav = () => `<div class="datenav"><button class="icon-btn" data-act="d
 const banner = () => hasExamples() ? `<div class="banner"><span><b>Beispieldaten</b> zeigen dir, wie alles aussieht.</span><button class="btn sm soft" data-act="clearExamples">Entfernen</button></div>` : '';
 
 /* ---------- views ---------- */
-const ui = { tab: 'heute', date: todayKey(), q: '' };
+const ui = { tab: 'heute', date: todayKey(), q: '', tsec: 'trainings' };
+try { const t = localStorage.getItem('eisenlog.tsec'); if (t) ui.tsec = t; } catch {}
 try { const t = localStorage.getItem('eisenlog.tab'); if (TITLES[t]) ui.tab = t; } catch {}
 
 function vHeute() {
@@ -606,30 +623,37 @@ function suppRow(s, d) {
     <div class="grow"><div class="title">${esc(s.name)}</div><div class="sub">${esc([s.dose, s.time].filter(Boolean).join(' · '))}</div></div></div>`;
 }
 
+function showTpl(id) {
+  const t = templates().find(x => x.id === id); if (!t) return;
+  const sets = t.exercises.reduce((n, e) => n + (parseInt(e.sets) || 0), 0);
+  openSheet(`<div><div class="eyebrow">${esc(t.group || 'Training')}</div><h2>${esc(t.name)}</h2><div class="small muted">${exSummary(t.exercises)} · ${sets} Sätze</div></div>
+    <div class="list">${t.exercises.map((e, i) => `<div class="item"><span class="n-badge">${i + 1}</span><div class="grow"><div class="title">${esc(e.name)}</div><div class="sub">${esc(groupOf(e.name))}</div></div>
+      <div style="text-align:right"><div class="kcal-val">${e.sets} × ${esc(e.reps || '–')}</div>${e.kg ? `<div class="sub">${esc(fmt(num(e.kg)))} kg</div>` : ''}</div></div>`).join('')}</div>
+    <div class="sheet-actions"><button class="btn" data-act="tpl" data-id="${t.id}">Bearbeiten</button><button class="btn primary" data-act="startT" data-id="${t.id}">Training starten</button></div>`);
+}
 function vTraining() {
   const a = active();
   if (a) return vActive(a);
-  const p = profile(), nx = nextDay(), ws = workouts(), T = templates();
-  const next = nx ? `<div class="card next"><div class="eyebrow">Als Nächstes · ${esc(nx.plan.name)}</div><h2>${esc(nx.day.name)}</h2>
-      <ul>${nx.day.exercises.map(e => `<li>${esc(e.name)}</li>`).join('')}</ul>
-      <button class="btn" data-act="start" data-plan="${nx.plan.id}" data-day="${nx.day.id}">Training starten</button>
-      ${nx.plan.days.length > 1 ? `<div class="row wrapflex" style="gap:6px"><span class="small">Anderer Tag:</span>${nx.plan.days.filter(d => d.id !== nx.day.id).map(d => `<button class="chip" style="background:transparent;color:inherit;border-color:currentColor" data-act="start" data-plan="${nx.plan.id}" data-day="${d.id}">${esc(d.name)}</button>`).join('')}</div>` : ''}</div>` : '';
-  const tpls = T.map(t => `<div class="tpl"><button class="tap" data-act="tpl" data-id="${t.id}" style="flex:1;min-width:0"><div class="grow"><div class="title">${esc(t.name)}</div>
-      <div class="sub">${t.group ? `<span class="pill" style="padding:1px 7px">${esc(t.group)}</span> ` : ''}${exSummary(t.exercises)} · ${esc(t.exercises.map(e => e.name).join(', '))}</div></div></button>
-      <button class="btn sm primary" data-act="startT" data-id="${t.id}" aria-label="${esc(t.name)} starten">Start</button></div>`).join('');
-  const plans = p.plans.map(pl => `<div class="item"><button class="tap" data-act="plan" data-id="${pl.id}"><div class="grow"><div class="title">${esc(pl.name)}</div>
-    <div class="sub">${pl.days.length} ${pl.days.length === 1 ? 'Tag' : 'Tage'} · ${esc(pl.days.map(d => d.name).join(' → '))}</div></div>
-    ${pl.id === p.activePlan ? '<span class="pill accent">Aktiv</span>' : ''}</button></div>`).join('');
-  const hist = ws.slice(0, 30).map(w => `<div class="item"><button class="tap" data-act="workout" data-id="${w.id}"><div class="grow"><div class="title">${esc(w.name)}</div>
-    <div class="sub">${esc(fmtDay(w.date))} · ${setCount(w)} Sätze · ${w.durationMin || '–'} min</div></div><span class="kcal-val">${fmtInt(volume(w))} kg</span></button></div>`).join('');
-  return `${banner()}${next}
-    <div class="section-label">Meine Trainings</div>
-    <div class="card">${tpls ? `<div class="list">${tpls}</div>` : '<div class="muted small">Noch keine gespeicherten Trainings.</div>'}
-      <div class="btnrow"><button class="btn soft" data-act="tpl">+ Training erstellen</button><button class="btn" data-act="start">Freies Training</button></div></div>
-    <div class="section-label">Trainingspläne</div>
-    <div class="card">${plans ? `<div class="list">${plans}</div>` : '<div class="muted small">Mit einem Plan legst du fest, welches Training wann dran ist – z. B. Push → Pull → Beine.</div>'}<button class="btn soft" data-act="plan">+ Plan erstellen</button></div>
-    <div class="section-label">Verlauf</div>
-    <div class="card">${hist ? `<div class="list">${hist}</div>` : '<div class="empty"><strong>Noch keine Trainings</strong>Starte dein erstes Training – jede Einheit landet hier.</div>'}</div>`;
+  const p = profile(), nx = nextDay(), ws = workouts(), T = templates(), sec = ui.tsec;
+  const next = nx ? `<div class="card next compact"><div class="row spread" style="align-items:flex-start"><div style="min-width:0"><div class="eyebrow">Als Nächstes · ${esc(nx.plan.name)}</div><h2>${esc(nx.day.name)}</h2>
+      <div class="small">${exSummary(nx.day.exercises)}</div></div><button class="btn" data-act="start" data-plan="${nx.plan.id}" data-day="${nx.day.id}">Starten</button></div></div>` : '';
+  const seg = `<div class="seg seg3" role="tablist">${[['trainings', 'Trainings'], ['plaene', 'Pläne'], ['verlauf', 'Verlauf']].map(([k, l]) => `<button role="tab" data-act="tsec" data-s="${k}" aria-pressed="${sec === k}">${l}</button>`).join('')}</div>`;
+  let body;
+  if (sec === 'plaene') {
+    const plans = p.plans.map(pl => `<div class="item"><button class="tap" data-act="plan" data-id="${pl.id}"><div class="grow"><div class="title">${esc(pl.name)}</div>
+      <div class="sub">${esc(pl.days.map(d => d.name).join(' → '))}</div></div>${pl.id === p.activePlan ? '<span class="pill accent">Aktiv</span>' : '<span class="muted">›</span>'}</button></div>`).join('');
+    body = `<div class="card">${plans ? `<div class="list">${plans}</div>` : ''}<div class="small muted">Ein Plan legt die Reihenfolge deiner Trainingstage fest, z. B. Push → Pull → Beine. Der aktive Plan schlägt dir oben immer den nächsten Tag vor.</div>
+      <button class="btn soft" data-act="plan">+ Plan erstellen</button></div>`;
+  } else if (sec === 'verlauf') {
+    const hist = ws.slice(0, 50).map(w => `<div class="item"><button class="tap" data-act="workout" data-id="${w.id}"><div class="grow"><div class="title">${esc(w.name)}</div>
+      <div class="sub">${esc(fmtDay(w.date))} · ${setCount(w)} Sätze · ${w.durationMin || '–'} min</div></div><span class="kcal-val">${fmtInt(volume(w))} kg</span></button></div>`).join('');
+    body = `<div class="card">${hist ? `<div class="list">${hist}</div>` : '<div class="empty"><strong>Noch keine Trainings</strong>Starte dein erstes Training – jede Einheit landet hier.</div>'}</div>`;
+  } else {
+    body = `<div class="tgrid">${T.map(t => `<button class="ttile" data-act="tplView" data-id="${t.id}"><span class="eyebrow">${esc(t.group || 'Training')}</span><strong>${esc(t.name)}</strong><span class="sub">${exSummary(t.exercises)}</span></button>`).join('')}
+      <button class="ttile add" data-act="tpl"><strong>+ Neues Training</strong><span class="sub">Übungen selbst zusammenstellen</span></button></div>
+      <button class="btn block" data-act="start">Freies Training starten</button>`;
+  }
+  return `${banner()}${next}${seg}${body}`;
 }
 function vActive(a) {
   const exs = a.exercises.map((e, ei) => {
@@ -833,7 +857,15 @@ const LIB = {
 };
 const GROUPS = Object.keys(LIB);
 const TPL_GROUPS = [...GROUPS, 'Ganzkörper', 'Oberkörper', 'Unterkörper'];
-function groupOf(name) { for (const g of GROUPS) if (LIB[g].includes(name)) return g; return 'Eigene'; }
+const customs = () => profile().customExercises || [];
+const customOf = name => customs().find(c => c.name === name);
+const MUSCLE_GROUP = { Quadrizeps: 'Beine', Beinbeuger: 'Beine', Po: 'Beine', Waden: 'Beine', 'Unterer Rücken': 'Rücken' };
+function groupOf(name) {
+  for (const g of GROUPS) if (LIB[g].includes(name)) return g;
+  const c = customOf(name); if (c) return MUSCLE_GROUP[c.main] || c.main;
+  return 'Eigene';
+}
+const LIB_ALL = Object.values(LIB).flat();
 function presets() {
   const T = (name, group, list) => ({ id: 't' + rid(), name, group, exercises: list.map(([n, sets, reps]) => ({ name: n, sets, reps, kg: '' })) });
   return [
@@ -884,26 +916,43 @@ function exEditor(list) {
 }
 function pickList() {
   const q = ed.q.trim().toLowerCase(), have = new Set(ed.type === 'live' ? (active() || { exercises: [] }).exercises.map(e => e.name) : curList().map(e => e.name));
-  const own = knownExercises().filter(n => groupOf(n) === 'Eigene');
-  const groups = ed.g ? [ed.g] : [...GROUPS, 'Eigene'];
+  const C = customs().map(c => c.name), unassigned = knownExercises().filter(n => groupOf(n) === 'Eigene');
+  const row = (n, own) => `<div class="pickrow"><button class="pick" data-act="edPicked" data-name="${esc(n)}"><span>${esc(n)}${own ? ' <span class="pill" style="padding:1px 7px">Eigene</span>' : ''}</span>${have.has(n) ? '<span class="pill ok">Drin</span>' : '<span class="plus">+</span>'}</button>${own ? `<button class="icon-btn" data-act="cxEdit" data-name="${esc(n)}" aria-label="${esc(n)} bearbeiten">✎</button>` : ''}</div>`;
+  const match = n => !q || n.toLowerCase().includes(q);
   let html = '', total = 0;
-  for (const g of groups) {
-    const names = (g === 'Eigene' ? own : LIB[g]).filter(n => !q || n.toLowerCase().includes(q));
-    if (!names.length) continue;
-    total += names.length;
-    html += `<div class="section-label" style="margin:8px 0 0">${esc(g === 'Eigene' ? 'Eigene Übungen' : g)}</div>` + names.map(n => `<button class="pick" data-act="edPicked" data-name="${esc(n)}"><span>${esc(n)}</span>${have.has(n) ? '<span class="pill ok">Drin</span>' : '<span class="plus">+</span>'}</button>`).join('');
-  }
+  const section = (title, names, own) => { names = names.filter(match); if (!names.length) return; total += names.length; html += `<div class="section-label" style="margin:8px 0 0">${esc(title)}</div>` + names.map(n => row(n, own(n))).join(''); };
+  if (ed.g === 'Eigene') { section('Eigene Übungen', C, () => true); section('Ohne Muskelgruppe', unassigned, () => false); }
+  else for (const g of ed.g ? [ed.g] : GROUPS) section(g, [...C.filter(n => groupOf(n) === g), ...LIB[g]], n => C.includes(n));
+  if (!ed.g) section('Ohne Muskelgruppe', unassigned, () => false);
   const typed = ed.q.trim();
-  if (typed && !knownExercises().concat(...Object.values(LIB)).some(n => n.toLowerCase() === typed.toLowerCase()))
-    html = `<button class="pick" data-act="edPicked" data-name="${esc(typed)}"><span>„${esc(typed)}“ als eigene Übung</span><span class="plus">+</span></button>` + html;
-  else if (!total) html = '<div class="muted small" style="padding:12px 0">Nichts gefunden. Tipp den Namen ein, um eine eigene Übung anzulegen.</div>';
+  if (typed && ![...LIB_ALL, ...knownExercises()].some(n => n.toLowerCase() === typed.toLowerCase()))
+    html = `<button class="pick" data-act="cxNew" data-name="${esc(typed)}"><span>„${esc(typed)}“ als eigene Übung anlegen</span><span class="plus">+</span></button>` + html;
+  else if (!total) html = '<div class="muted small" style="padding:12px 0">Nichts gefunden.</div>';
   return html;
 }
+function openCustom(name) {
+  const c = customOf(name);
+  ed.cf = { name: name || '', main: c ? c.main : '', sec: c ? [...(c.sec || [])] : [], existing: !!c };
+  ed.cfBack = ed.view; ed.view = 'custom'; renderEd(); $('#sheet').scrollTop = 0;
+}
+function customForm() {
+  const F = ed.cf, L = m => esc(MUSCLE_LABEL[m] || m);
+  return `<button class="link" data-act="cxBack" style="align-self:flex-start">‹ Zurück</button>
+    <h2>${F.existing ? 'Eigene Übung bearbeiten' : 'Eigene Übung anlegen'}</h2>
+    <label class="field">Name der Übung<input id="cx-name" type="text" value="${esc(F.name)}" ${F.existing ? 'readonly' : ''} placeholder="z. B. Kabel-Curls einarmig" autocomplete="off"></label>
+    <div class="field" style="gap:8px">Welcher Muskel wird hauptsächlich trainiert?<div class="chips">${MUSCLES.map(m => `<button class="chip" data-act="cxMain" data-m="${esc(m)}" aria-pressed="${F.main === m}">${L(m)}</button>`).join('')}</div></div>
+    <div class="field" style="gap:8px">Welche Muskeln arbeiten mit? <span style="font-weight:500">(optional, mehrere möglich)</span><div class="chips">${MUSCLES.filter(m => m !== F.main).map(m => `<button class="chip" data-act="cxSec" data-m="${esc(m)}" aria-pressed="${F.sec.includes(m)}">${L(m)}</button>`).join('')}</div></div>
+    <div class="small muted">Unter „Fortschritt“ zählen die Sätze voll für den Hauptmuskel und halb für mittrainierte Muskeln.</div>
+    <div class="sheet-actions">${F.existing ? '<button class="btn danger" data-act="cxDel" data-confirm="Wirklich löschen?">Löschen</button>' : '<button class="btn ghost" data-act="cxBack">Abbrechen</button>'}
+      <button class="btn primary" data-act="cxSave">${F.existing || ed.type === 'cx' ? 'Speichern' : 'Anlegen & hinzufügen'}</button></div>`;
+}
 function renderEd() {
+  if (ed.view === 'custom') { openSheet(customForm(), 'ed'); return; }
   if (ed.view === 'pick') {
     openSheet(`<div class="row spread"><h2>Übung auswählen</h2><button class="link" data-act="edBack">${ed.type === 'live' ? 'Schließen' : 'Fertig'}</button></div>
       <input id="pk-q" type="text" placeholder="Übung suchen oder eigene eintippen …" value="${esc(ed.q)}" autocomplete="off" aria-label="Übung suchen">
       <div class="chips">${['', ...GROUPS, 'Eigene'].map(g => `<button class="chip" data-act="edFilter" data-g="${esc(g)}" aria-pressed="${ed.g === g}">${esc(g || 'Alle')}</button>`).join('')}</div>
+      <button class="btn sm soft" style="align-self:flex-start" data-act="cxNew" data-name="">+ Eigene Übung anlegen</button>
       <div id="pk-list">${pickList()}</div>`, 'ed');
     return;
   }
@@ -1005,9 +1054,35 @@ const edActs = {
     else editProfile(p => { p.plans = p.plans.filter(x => x.id !== id); if (p.activePlan === id) p.activePlan = p.plans[0] ? p.plans[0].id : null; });
     closeSheet(); toast('Gelöscht'); render();
   },
-  startT: el => startWorkout(null, null, el.dataset.id),
+  startT: el => { closeSheet(); startWorkout(null, null, el.dataset.id); },
+  tplView: el => showTpl(el.dataset.id),
+  tsec: el => { ui.tsec = el.dataset.s; try { localStorage.setItem('eisenlog.tsec', ui.tsec); } catch {} render(); },
+  cxNew: el => openCustom(el.dataset.name || ed.q.trim()),
+  cxEdit: el => openCustom(el.dataset.name),
+  cxAssign: el => { ed = { type: 'cx', view: 'main', q: '', g: '' }; openCustom(el.dataset.name); },
+  cxBack: () => { if (ed.type === 'cx') { closeSheet(); return; } ed.view = ed.cfBack; renderEd(); },
+  cxMain: el => { ed.cf.main = el.dataset.m; ed.cf.sec = ed.cf.sec.filter(m => m !== ed.cf.main); renderEd(); },
+  cxSec: el => { const m = el.dataset.m, S = ed.cf.sec; ed.cf.sec = S.includes(m) ? S.filter(x => x !== m) : [...S, m]; el.setAttribute('aria-pressed', ed.cf.sec.includes(m)); },
+  cxSave: () => {
+    const F = ed.cf, name = F.name.trim();
+    if (!name) { toast('Gib der Übung einen Namen.'); $('#cx-name').focus(); return; }
+    if (!F.main) { toast('Wähle den Muskel, der hauptsächlich trainiert wird.'); return; }
+    if (!F.existing && LIB_ALL.some(n => n.toLowerCase() === name.toLowerCase())) { toast('Diese Übung gibt es schon in der Liste.'); return; }
+    editProfile(p => { p.customExercises = (p.customExercises || []).filter(c => c.name !== name); p.customExercises.push({ name, main: F.main, sec: F.sec.filter(m => m !== F.main) }); });
+    if (ed.type === 'cx') { closeSheet(); toast(`${name} zugeordnet`); render(); return; }
+    if (F.existing) { toast('Gespeichert'); ed.view = ed.cfBack; renderEd(); return; }
+    if (ed.type === 'live') { editActive(a => a.exercises.push(mkEx(name, 3, '', ''))); closeSheet(); toast(`${name} angelegt`); render(); return; }
+    if (!curList().some(e => e.name === name)) curList().push(newEx(name));
+    ed.view = ed.cfBack; ed.q = ''; renderEd(); toast(`${name} angelegt und hinzugefügt`);
+  },
+  cxDel: el => {
+    if (!armed(el)) return;
+    const name = ed.cf.name; editProfile(p => { p.customExercises = (p.customExercises || []).filter(c => c.name !== name); });
+    toast(`${name} gelöscht`); if (ed.type === 'cx') { closeSheet(); render(); } else { ed.view = ed.cfBack; renderEd(); }
+  },
 };
 function edInput(el) {
+  if (el.id === 'cx-name' && ed && ed.cf) { ed.cf.name = el.value; return true; }
   if (el.id === 'pk-q') { ed.q = el.value; $('#pk-list').innerHTML = pickList(); return true; }
   if (!el.dataset.ed || !ed) return false;
   const f = el.dataset.ed;
@@ -1045,6 +1120,11 @@ const MUSCLE_MAP = (() => {
   add(LIB['Bauch'], { Bauch: 1 });
   return m;
 })();
+function muscleOf(name) {
+  if (MUSCLE_MAP[name]) return MUSCLE_MAP[name];
+  const c = customOf(name); if (!c || !c.main) return null;
+  const m = { [c.main]: 1 }; for (const x of c.sec || []) if (x !== c.main) m[x] = 0.5; return m;
+}
 const MUSCLES = ['Brust', 'Schultern', 'Rücken', 'Unterer Rücken', 'Bizeps', 'Trizeps', 'Bauch', 'Quadrizeps', 'Beinbeuger', 'Po', 'Waden'];
 const MUSCLE_LABEL = { Quadrizeps: 'Oberschenkel vorne', Beinbeuger: 'Oberschenkel hinten', Rücken: 'Oberer Rücken & Lat' };
 // Richtwert: 10–20 Arbeitssätze pro Muskel und Woche
@@ -1062,7 +1142,7 @@ function muscleSets(days) {
   for (const w of workouts()) {
     if (w.date < from) continue;
     for (const e of w.exercises || []) {
-      const map = MUSCLE_MAP[e.name], n = (e.sets || []).length;
+      const map = muscleOf(e.name), n = (e.sets || []).length;
       if (!map) { unmapped.add(e.name); continue; }
       for (const k in map) sets[k] += n * map[k];
     }
@@ -1105,7 +1185,8 @@ function vMuscles() {
     <div class="legend">${LEVELS.map(l => `<span><i class="sw ${l.cls}"></i>${l.label}</span>`).join('')}</div>
     <div class="list">${rows.map(({ m, v }) => { const L = levelOf(v); return `<div class="item mrow"><i class="sw ${L.cls}"></i><div class="grow"><div class="title">${esc(MUSCLE_LABEL[m] || m)}</div>
       <div class="meter"><b class="${L.cls}" style="width:${Math.min(100, v / 20 * 100)}%"></b></div></div><div style="text-align:right"><div class="kcal-val">${fmt(v)}</div><div class="sub">${L.label}</div></div></div>`; }).join('')}</div>
-    <div class="small muted">Sätze pro Woche${days > 7 ? ' (Durchschnitt der letzten 4 Wochen)' : ''}. Hauptmuskel zählt voll, mittrainierte Muskeln halb. Richtwert für Muskelaufbau: 10–20 Sätze pro Muskel und Woche.${unmapped.length ? ` Nicht zugeordnet: ${esc(unmapped.join(', '))}.` : ''}</div></div>`;
+    <div class="small muted">Sätze pro Woche${days > 7 ? ' (Durchschnitt der letzten 4 Wochen)' : ''}. Hauptmuskel zählt voll, mittrainierte Muskeln halb. Richtwert für Muskelaufbau: 10–20 Sätze pro Muskel und Woche.</div>
+    ${unmapped.length ? `<div class="exrow"><div class="small"><b>Ohne Muskelgruppe</b> – diese Übungen zählen noch nicht mit:</div><div class="chips">${unmapped.map(n => `<button class="chip" data-act="cxAssign" data-name="${esc(n)}">${esc(n)} · zuordnen</button>`).join('')}</div></div>` : ''}</div>`;
 }
 
 /* ---------- food ---------- */
