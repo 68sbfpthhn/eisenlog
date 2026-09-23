@@ -48,7 +48,16 @@ page = f'''<!doctype html>
 <body>
 {content}
 <script>
-if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {{}}));
+// Updates: beim Öffnen nach neuer Version suchen und automatisch neu laden
+if ('serviceWorker' in navigator) {{
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {{ if (!hadController || reloading) return; reloading = true; location.reload(); }});
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').then(reg => {{
+    document.addEventListener('visibilitychange', () => {{ if (!document.hidden) reg.update().catch(() => {{}}); }});
+    setInterval(() => reg.update().catch(() => {{}}), 30 * 60 * 1000);
+  }}).catch(() => {{}}));
+}}
 </script>
 </body>
 </html>
