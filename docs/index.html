@@ -342,6 +342,12 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .exd>summary{padding:8px 12px}
 .exd-body{display:flex;flex-direction:column;gap:10px;padding:2px 12px 12px}
 /* saved meals */
+.smcard>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px}
+.smcard>summary::-webkit-details-marker{display:none}
+.smcard[open]>summary{margin-bottom:4px}
+.smbody{display:flex;flex-direction:column;gap:10px}
+.smrow .title{font-weight:600}
+.smpick .pkg-body{display:flex;flex-direction:column;gap:6px;padding-bottom:10px}
 .savechk{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;padding:4px 0}
 .savechk input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .savechk .muted{font-weight:500}
@@ -535,7 +541,9 @@ async function doAuth() {
   }
 }
 document.addEventListener('toggle', e => {
-  const d = e.target; if (!ed || !d.classList) return;
+  const d = e.target; if (!d.classList) return;
+  if (d.classList.contains('smcard')) ui.smOpen = d.open;
+  if (!ed) return;
   if (d.classList.contains('exd') && d.open) { ed.openEx = +d.dataset.i; document.querySelectorAll('.exd[open]').forEach(x => { if (x !== d) x.open = false; }); }
   if (d.classList.contains('pkg') && d.open) ed.openG = d.dataset.g;
 }, true);
@@ -1741,14 +1749,19 @@ function addSavedMeal(id, k, slot, factor = 1) {
   editDay(k, d => d.foods.push(entry)); render();
   toast(`${m.name} eingetragen · ${fmtInt(entry.kcal)} kcal`, { label: 'Rückgängig', fn: () => { editDay(k, d => { d.foods = d.foods.filter(x => x.id !== entry.id); }); render(); } });
 }
+function smRow(m, act) {
+  const t = mealTot(m);
+  return `<div class="item smrow" data-name="${esc(m.name.toLowerCase())}">${act === 'smAdd' ? `<button class="tap" data-act="smOpen" data-id="${m.id}" style="flex:1;min-width:0">` : '<div class="grow" style="min-width:0">'}<div class="grow"><div class="title">${esc(m.name)}</div>
+    <div class="sub num">${fmtInt(t.kcal)} kcal · ${macroShort(t)}${m.items.length > 1 ? ` · ${m.items.length} Teile` : ''}</div></div>${act === 'smAdd' ? '</button>' : '</div>'}
+    <button class="pktog" data-act="${act}" data-id="${m.id}" aria-label="${esc(m.name)} eintragen">+</button></div>`;
+}
+const smSearch = id => savedMeals().length > 6 ? `<input id="${id}" class="smq" type="text" placeholder="Mahlzeit suchen …" autocomplete="off" aria-label="Mahlzeit suchen">` : '';
 function savedCard() {
-  const M = savedMeals(), shown = ui.smAll ? M : M.slice(0, 5);
-  return `<div class="card"><div class="card-head"><h3>Gespeicherte Mahlzeiten</h3><button class="link" data-act="smNew">+ Neu</button></div>
-    ${M.length ? `<div class="list">${shown.map(m => { const t = mealTot(m); return `<div class="item"><button class="tap" data-act="smOpen" data-id="${m.id}" style="flex:1;min-width:0"><div class="grow"><div class="title">${esc(m.name)}</div>
-      <div class="sub num">${fmtInt(t.kcal)} kcal · ${macroShort(t)}${m.items.length > 1 ? ` · ${m.items.length} Teile` : ''}</div></div></button>
-      <button class="pktog" data-act="smAdd" data-id="${m.id}" aria-label="${esc(m.name)} eintragen">+</button></div>`; }).join('')}</div>
-      ${M.length > 5 ? `<button class="link" style="align-self:flex-start" data-act="smAll">${ui.smAll ? 'Weniger anzeigen' : `Alle ${M.length} anzeigen`}</button>` : ''}`
-    : '<div class="small muted">Speichere Mahlzeiten, die du oft isst – z. B. dein Frühstück. Beim Eintragen gibt es dafür das Häkchen „Als Mahlzeit speichern“, oder tippe unter einer Mahlzeit des Tages auf „Als Mahlzeit speichern“.</div>'}</div>`;
+  const M = savedMeals();
+  return `<details class="card smcard"${ui.smOpen ? ' open' : ''}><summary><h3>Gespeicherte Mahlzeiten</h3>${M.length ? `<span class="pill">${M.length}</span>` : ''}<span class="chev" style="margin-left:auto">›</span></summary>
+    <div class="smbody">${M.length ? `${smSearch('sm-q')}<div class="list">${M.map(m => smRow(m, 'smAdd')).join('')}</div>`
+      : '<div class="small muted">Speichere Mahlzeiten, die du oft isst – z. B. dein Frühstück. Beim Eintragen gibt es dafür das Häkchen „Als Mahlzeit speichern“, oder tippe unter einer Mahlzeit des Tages auf „Als Mahlzeit speichern“.</div>'}
+      <button class="btn sm soft" style="align-self:flex-start" data-act="smNew">+ Neue Mahlzeit</button></div></details>`;
 }
 let smc = null;
 function openSavedMeal(id) {
@@ -1772,7 +1785,6 @@ const smActs = {
   smAdd: el => addSavedMeal(el.dataset.id, ui.tab === 'essen' ? ui.date : todayKey(), slotNow()),
   smQuick: el => { const slot = $('#f-meal').value, k = fctx.k; closeSheet(); addSavedMeal(el.dataset.id, k, slot); },
   smOpen: el => openSavedMeal(el.dataset.id),
-  smAll: () => { ui.smAll = !ui.smAll; render(); },
   smF: el => { smc.name = val('sm-name') || smc.name; smc.slot = $('#sm-slot').value; smc.factor = num(el.dataset.f); renderSM(); },
   smEat: () => { renameSM(); const { id, k, factor } = smc, slot = $('#sm-slot').value; closeSheet(); addSavedMeal(id, k, slot, factor); },
   smDel: el => { if (!armed(el)) return; const id = smc.id; editProfile(p => { p.savedMeals = (p.savedMeals || []).filter(x => x.id !== id); }); closeSheet(); toast('Mahlzeit gelöscht'); render(); },
@@ -1815,7 +1827,8 @@ function openFood(meal) {
   stopScan(); fctx = { meal, k: ui.tab === 'essen' ? ui.date : todayKey(), view: 'form' };
   openSheet(`<div><div class="eyebrow">${esc(fmtDay(fctx.k))}</div><h2>Essen eintragen</h2></div>
     ${foodTools()}
-    ${savedMeals().length ? `<div class="small muted">Gespeicherte Mahlzeiten – antippen zum Eintragen</div><div class="chips">${savedMeals().slice(0, 10).map(m => `<button class="chip" data-act="smQuick" data-id="${m.id}">${esc(m.name)} <span class="muted">${fmtInt(mealTot(m).kcal)}</span></button>`).join('')}</div>` : ''}
+    ${savedMeals().length ? `<details class="pkg smpick"><summary><div class="grow"><div class="title">Gespeicherte Mahlzeiten</div><div class="sub">${savedMeals().length} gespeichert – antippen zum Eintragen</div></div><span class="chev">›</span></summary>
+      <div class="pkg-body">${smSearch('smp-q')}<div class="list">${savedMeals().map(m => smRow(m, 'smQuick')).join('')}</div></div></details>` : ''}
     ${recentFoods.length ? `<div class="small muted">Zuletzt gegessen – antippen zum Übernehmen</div><div class="chips">${recentFoods.map((f, i) => `<button class="chip" data-act="quickFood" data-i="${i}">${esc(f.name)} <span class="muted">${fmtInt(num(f.kcal))}</span></button>`).join('')}</div>` : ''}
     <label class="field">Lebensmittel<input id="f-name" type="text" placeholder="z. B. Magerquark 250 g" autocomplete="off"></label>
     <label class="field">Kalorien (kcal)<input id="f-kcal" inputmode="decimal" placeholder="0"></label>
@@ -1972,6 +1985,8 @@ document.addEventListener('input', e => {
     putLater('active', a);
   } else if (el.dataset.actInput === 'q') {
     ui.q = el.value; render();
+  } else if (el.id === 'sm-q' || el.id === 'smp-q') {
+    const q = el.value.trim().toLowerCase(); el.parentElement.querySelectorAll('.smrow').forEach(r => { r.hidden = !!q && !r.dataset.name.includes(q); });
   } else if (edInput(el) || foodInput(el) || energyInput(el)) {
   } else if (/^g-/.test(el.id)) goalHint();
 });
