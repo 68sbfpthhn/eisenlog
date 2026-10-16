@@ -24,9 +24,12 @@ Firebase → **Authentication → Einstellungen → Autorisierte Domains** → `
 
 Jede Person erstellt in der App ihr eigenes Konto und sieht nur ihre eigenen Daten.
 
-## KI-Foto-Analyse (Firebase AI Logic)
-Firebase → **KI-Dienste → AI Logic** → **Jetzt starten** → **Gemini Developer API** auswählen und aktivieren (kostenlos im Spark-Tarif).
-Die App nutzt das Modell `gemini-3.6-flash` (Ersatz: `gemini-2.5-flash`), eingestellt in `index.html` unter `AI_MODELS`.
-
 ## Barcode-Scanner
 Produktdaten kommen aus der freien Datenbank Open Food Facts (keine Einrichtung nötig). Der Scanner (`vendor/zxing.js`) wird erst beim ersten Scannen geladen.
+
+## Vor dem Veröffentlichen (Rechtliches)
+1. In `index.html` ganz oben im Abschnitt „Rechtliches“ das Objekt `OPERATOR` mit deinem Namen, deiner Anschrift und deiner Kontakt-E-Mail ausfüllen. Diese Angaben erscheinen im Impressum und in der Datenschutzerklärung. Danach `python3 build.py`.
+2. Firebase → **KI-Dienste → AI Logic** wieder ausschalten (falls aktiviert). Die App nutzt keine KI mehr.
+3. Firebase → **Authentication → Einstellungen → Passwortrichtlinie**: Mindestlänge 10 Zeichen einstellen, damit die Regel auch serverseitig gilt.
+4. Firebase → **Projekteinstellungen → Datenschutz**: die Datenverarbeitungsbedingungen (Data Processing Terms) akzeptieren und prüfen, dass Firestore wirklich in `europe-west3 (Frankfurt)` liegt.
+5. Datenschutzerklärung (`LEGAL.datenschutz` in `index.html`) lesen und anpassen, wenn du Dienste änderst. Bei Unsicherheit von einer Fachperson prüfen lassen.
