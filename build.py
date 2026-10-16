@@ -11,7 +11,7 @@ head_end = rest.index('</style>') + len('</style>')
 head, content = rest[:head_end], rest[head_end:]
 cfg_file = root / 'firebase-config.json'
 cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else None
-version = hashlib.sha1((body + json.dumps(cfg) + pathlib.Path(__file__).read_text()).encode()).hexdigest()[:10]
+version = hashlib.sha1((body + json.dumps(cfg) + pathlib.Path(__file__).read_text() + (root / 'THIRD-PARTY-LICENSES.txt').read_text()).encode()).hexdigest()[:10]
 vendor = ['firebase-bundle.js']  # zxing.js wird bei Bedarf nachgeladen
 firebase_tags = ''
 if cfg:
@@ -64,6 +64,10 @@ if ('serviceWorker' in navigator) {{
 '''
 (dist / 'index.html').write_text(page)
 shutil.copytree(root / 'icons', dist / 'icons', dirs_exist_ok=True)
+shutil.copytree(root / 'fonts', dist / 'fonts', dirs_exist_ok=True)
+for f in ['THIRD-PARTY-LICENSES.txt']:
+    shutil.copy(root / f, dist / f)
+fonts = sorted(f'fonts/{p.name}' for p in (root / 'fonts').glob('*.woff2'))
 
 manifest = {
     "name": "Eisenlog", "short_name": "Eisenlog", "lang": "de",
@@ -79,7 +83,7 @@ manifest = {
 (dist / 'manifest.webmanifest').write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
 
 (dist / 'sw.js').write_text(f'''const CACHE = 'eisenlog-{version}';
-const SHELL = {json.dumps(['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'] + ([f'vendor/{f}' for f in vendor] if cfg else []))};
+const SHELL = {json.dumps(['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'] + fonts + ([f'vendor/{f}' for f in vendor] if cfg else []))};
 self.addEventListener('install', e => {{ e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); }});
 self.addEventListener('activate', e => {{
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -95,7 +99,7 @@ self.addEventListener('fetch', e => {{
     return;
   }}
   // Alles andere (Icons, Schriften): Cache zuerst, im Hintergrund auffrischen
-  if (url.origin === location.origin || /fonts\\.(googleapis|gstatic)\\.com$/.test(url.hostname)) {{
+  if (url.origin === location.origin) {{
     e.respondWith(caches.match(req).then(hit => {{
       const net = fetch(req).then(r => {{ if (r.ok || r.type === 'opaque') {{ const c = r.clone(); caches.open(CACHE).then(x => x.put(req, c)); }} return r; }}).catch(() => hit);
       return hit || net;

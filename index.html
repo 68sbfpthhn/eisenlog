@@ -1,8 +1,13 @@
 <title>Eisenlog</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap">
 <style>
+/* Schriften lokal (SIL Open Font License, siehe fonts/) – keine Anfragen an Google */
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/barlow-condensed-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:600;font-display:swap;src:url(fonts/barlow-condensed-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Barlow Condensed';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/barlow-condensed-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/manrope-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:500;font-display:swap;src:url(fonts/manrope-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:600;font-display:swap;src:url(fonts/manrope-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:700;font-display:swap;src:url(fonts/manrope-latin-700-normal.woff2) format('woff2')}
 :root{
   --bg:#F1F3F2; --surface:#FFFFFF; --surface2:#E7EBE9; --ink:#131916; --muted:#5D6963; --line:#DAE0DD;
   --accent:#2450D8; --accent-ink:#FFFFFF; --accent-soft:#E2E8FB;
@@ -251,17 +256,9 @@ input::placeholder{color:color-mix(in srgb,var(--muted) 70%,transparent)}
 .ftool b{color:var(--ink);font-size:15px;margin-top:4px}
 .ftool small{color:var(--muted);font-size:12px;font-weight:500}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
-.aiprev{width:100%;max-height:220px;object-fit:cover;border-radius:12px;background:var(--surface2)}
 .aibusy{display:flex;align-items:center;gap:12px;padding:18px 4px;font-weight:600}
 .spin{width:22px;height:22px;border-radius:50%;border:3px solid var(--accent-soft);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
-.airow{align-items:flex-start}
-.airow .grow{display:flex;flex-direction:column;gap:4px}
-.airow input[type=checkbox]{margin-top:6px;width:22px;height:22px;flex:none;accent-color:var(--accent)}
-.ainame{height:34px!important;padding:0 8px!important;font-weight:600;background:transparent!important;border-color:transparent!important}
-.ainame:focus{border-color:var(--line)!important;background:var(--bg)!important}
-.aig{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted)}
-.aig input{width:62px;height:38px;text-align:center;padding:0 4px}
 .scanbox{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;max-width:100%}
 .scanbox video{width:100%;height:100%;object-fit:cover;display:block}
 .scanframe{position:absolute;inset:28% 12%;border:3px solid #fff;border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
@@ -334,6 +331,10 @@ details[open]>summary .chev{transform:rotate(90deg)}
 .savechk{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;padding:4px 0}
 .savechk input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .savechk .muted{font-weight:500}
+.consent{align-items:flex-start;font-weight:500;font-size:13.5px;line-height:1.4}.consent input{margin-top:1px}
+.legal{display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5}.legal h3{margin:10px 0 0;font-size:15px}.legal p,.legal ul{margin:0}.legal ul{padding-left:20px}.legal a{color:var(--accent)}
+.legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 16px}.legal-links .link{font-size:13px;font-weight:500;color:var(--muted)}
+.verify{background:var(--accent-soft);border-radius:12px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
 /* progress */
 .maxhint{display:block;font-size:11px;font-weight:600;color:var(--muted);text-align:center;margin-top:2px;line-height:1.2}
 .field .maxhint{text-align:left}
@@ -433,7 +434,8 @@ let backend = null, ready = false, mode = 'local';
 const LS = 'eisenlog.v1';
 const IS_PWA = !!document.querySelector('link[rel=manifest]');
 const FB = IS_PWA && window.EISENLOG_FIREBASE && window.firebase ? window.EISENLOG_FIREBASE : null;
-let authState = FB ? 'unknown' : 'none', fbAuth = null, fbDb = null;
+const MIN_PW = 10; // Mindestlänge Passwort bei der Registrierung
+let authState = FB ? 'unknown' : 'none', fbAuth = null, fbDb = null, unsubDb = null, serverSynced = false;
 
 function persist(id) {
   if (!backend) return;
@@ -481,10 +483,11 @@ function connectDb(coll, fireAndForget) {
     ? { save: async (k, d) => { coll.doc(k).set(d).catch(writeError); }, del: async k => { coll.doc(k).delete().catch(writeError); } }
     : { save: (k, d) => coll.doc(k).set(d), del: k => coll.doc(k).delete() };
   let seeded = false;
-  coll.onSnapshot(snap => {
+  unsubDb = coll.onSnapshot(snap => {
     const seen = new Set();
     for (const d of snap.docs) { seen.add(d.id); if (!dirty.has(d.id)) docs.set(d.id, d.data()); }
     if (!snap.metadata.fromCache) {
+      serverSynced = true;
       for (const k of [...docs.keys()]) if (!seen.has(k) && !dirty.has(k)) docs.delete(k);
       if (!seeded) { seeded = true; if (!docs.has('profile')) seed(); else migrate(); }
     }
@@ -510,7 +513,7 @@ const AUTH_MSG = {
   'auth/user-not-found': 'Zu dieser E-Mail gibt es kein Konto. Erstelle zuerst eins.', 'auth/invalid-email': 'Diese E-Mail-Adresse ist ungültig.',
   'auth/missing-email': 'Gib deine E-Mail-Adresse ein.',
   'auth/email-already-in-use': 'Mit dieser E-Mail gibt es schon ein Konto. Melde dich stattdessen an.',
-  'auth/weak-password': 'Das Passwort braucht mindestens 6 Zeichen.', 'auth/missing-password': 'Gib ein Passwort ein.',
+  'auth/weak-password': `Das Passwort braucht mindestens ${MIN_PW} Zeichen.`, 'auth/requires-recent-login': 'Bitte melde dich einmal neu an und versuch es dann nochmal.', 'auth/missing-password': 'Gib ein Passwort ein.',
   'auth/network-request-failed': 'Keine Internetverbindung. Zum Anmelden brauchst du einmal Internet.',
   'auth/too-many-requests': 'Zu viele Versuche. Warte kurz und versuch es dann nochmal.',
 };
@@ -522,18 +525,33 @@ function vAuth() {
     <form id="authForm" novalidate>
       ${reg ? `<label class="field">Dein Name<input id="a-name" type="text" autocomplete="name" value="${esc(ui.authName || '')}" placeholder="z. B. Alex"></label>` : ''}
       <label class="field">E-Mail<input id="a-email" type="email" autocomplete="email" inputmode="email" value="${esc(ui.authEmail || '')}" placeholder="name@beispiel.de"></label>
-      <label class="field">Passwort<input id="a-pw" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="${reg ? 'Mindestens 6 Zeichen' : ''}"></label>
+      <label class="field">Passwort<input id="a-pw" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="${reg ? `Mindestens ${MIN_PW} Zeichen` : ''}"></label>
+      ${reg ? `<label class="savechk consent"><input id="a-age" type="checkbox"> <span>Ich bin mindestens 16 Jahre alt.</span></label>
+      <label class="savechk consent"><input id="a-consent" type="checkbox"> <span>Ich willige ausdrücklich ein, dass meine Angaben zu Körper, Ernährung, Supplements und Training – auch Gesundheitsdaten – in meinem Konto gespeichert werden, damit die App funktioniert. Widerruf jederzeit durch Löschen des Kontos. Details in der <button class="link" type="button" data-act="legal" data-l="datenschutz" style="padding:0;font-size:inherit">Datenschutzerklärung</button>.</span></label>` : ''}
       <div class="err" id="a-err" role="alert"></div>
       <button class="btn primary" id="a-btn" type="submit">${reg ? 'Konto erstellen' : 'Anmelden'}</button>
       ${reg ? '' : '<button class="link" type="button" data-act="authReset" style="align-self:center">Passwort vergessen?</button>'}
-    </form></div>`;
+    </form>${legalLinks()}</div>`;
 }
 async function doAuth() {
   const email = val('a-email'), pw = $('#a-pw').value, name = val('a-name'), err = $('#a-err'), btn = $('#a-btn');
   const reg = ui.authMode === 'register', label = btn.textContent;
-  err.textContent = ''; btn.disabled = true; btn.textContent = 'Einen Moment …';
+  err.textContent = '';
+  if (reg) {
+    if (pw.length < MIN_PW) { err.textContent = `Das Passwort braucht mindestens ${MIN_PW} Zeichen.`; return; }
+    if (!$('#a-age').checked) { err.textContent = 'Eisenlog ist erst ab 16 Jahren. Bitte bestätige dein Alter.'; return; }
+    if (!$('#a-consent').checked) { err.textContent = 'Ohne deine Einwilligung kann die App deine Daten nicht speichern.'; return; }
+  }
+  btn.disabled = true; btn.textContent = 'Einen Moment …';
   try {
-    if (reg) { const c = await fbAuth.createUserWithEmailAndPassword(email, pw); if (name) await c.user.updateProfile({ displayName: name }); }
+    if (reg) {
+      const c = await fbAuth.createUserWithEmailAndPassword(email, pw);
+      // Einwilligung nachweisbar festhalten (Art. 7 Abs. 1 DSGVO)
+      await fbDb.collection('users').doc(c.user.uid).collection('docs').doc('consent')
+        .set({ kind: 'consent', version: CONSENT_VERSION, healthData: true, age16: true, at: new Date().toISOString() }).catch(e => console.warn(e));
+      if (name) await c.user.updateProfile({ displayName: name });
+      c.user.sendEmailVerification().then(() => toast('Wir haben dir einen Link zum Bestätigen deiner E-Mail geschickt.')).catch(e => console.warn(e));
+    }
     else await fbAuth.signInWithEmailAndPassword(email, pw);
   } catch (e) {
     err.textContent = AUTH_MSG[e.code] || 'Das hat nicht geklappt (' + (e.code || e.message) + ').';
@@ -857,8 +875,10 @@ function render() {
   $('#topTitle').textContent = TITLES[ui.tab];
   document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === ui.tab ? 'page' : 'false'));
   if (!ready) { view.innerHTML = '<div class="loading">Lädt …</div>'; return; }
-  document.body.classList.toggle('signed-out', authState === 'out');
+  const gate = authState === 'out' || needsConsent();
+  document.body.classList.toggle('signed-out', gate);
   if (authState === 'out') { $('#topTitle').textContent = 'Eisenlog'; view.innerHTML = vAuth(); return; }
+  if (gate) { $('#topTitle').textContent = 'Eisenlog'; view.innerHTML = vConsent(); return; }
   const ae = document.activeElement, focusId = ae && view.contains(ae) ? ae.id : null;
   view.innerHTML = VIEWS[ui.tab]();
   if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(el.value.length, el.value.length); } catch {} } }
@@ -872,7 +892,7 @@ function openSheet(html, ctx) {
   const s = $('#sheet'); s.innerHTML = '<div class="grab"></div>' + html; s.hidden = false; $('#sheetBg').hidden = false;
   document.body.style.overflow = 'hidden';
 }
-function closeSheet() { stopScan(); if (fctx && fctx.ai && fctx.ai.preview) URL.revokeObjectURL(fctx.ai.preview); fctx = null; $('#sheet').hidden = true; $('#sheetBg').hidden = true; $('#sheet').innerHTML = ''; sheetCtx = null; document.body.style.overflow = ''; }
+function closeSheet() { stopScan(); fctx = null; $('#sheet').hidden = true; $('#sheetBg').hidden = true; $('#sheet').innerHTML = ''; sheetCtx = null; document.body.style.overflow = ''; }
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(); });
 let toastT;
 function toast(msg, action) {
@@ -1475,7 +1495,8 @@ function vProfil() {
       ${W.length > 1 ? chart(W.slice(-30).map(x => ({ date: x.date, kg: num(x.kg) })), 'kg') : ''}
       <div class="small muted">${W.length ? `Jede Änderung beim Gewicht wird mit Datum gespeichert.${W.length > 1 ? ` Seit ${esc(fmtDay(W[0].date))}: ${(dk => (dk > 0 ? '+' : dk < 0 ? '−' : '±') + fmt(Math.abs(dk)))(num(W[W.length - 1].kg) - num(W[0].kg))} kg` : ''}` : 'Sobald du dein Gewicht einträgst, siehst du hier den Verlauf.'}</div></div>
     <div class="card"><h3>Wasser</h3><label class="field">Tagesziel in Litern<input id="g-w" inputmode="decimal" value="${fmt(waterGoal() / 1000, 2)}" style="max-width:140px"></label></div>
-    ${IS_PWA ? `<button class="btn block" data-act="backup">Konto & Datensicherung</button>` : ''}`;
+    ${IS_PWA ? `<button class="btn block" data-act="backup">Konto & Datensicherung</button>` : ''}
+    ${legalLinks()}`;
 }
 function saveBody(f, v) {
   editProfile(p => {
@@ -1621,98 +1642,20 @@ const progActs = {
 
 /* ---------- food ---------- */
 let recentFoods = [];
-/* ---------- food: AI photo analysis & barcode scanner ---------- */
+/* ---------- food: barcode scanner ---------- */
 let fctx = null;
-const aiOn = () => !!(FB && window.firebaseAI);
-const AI_MODELS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
-const ICON_CAM = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 const ICON_BC = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3M7 8v8M10 8v8M13 8v8M16 8v8"/></svg>';
 function foodTools() {
   if (!IS_PWA) return '';
-  return `<div class="ftools">${aiOn() ? `<label class="ftool" for="ai-file">${ICON_CAM}<b>Foto analysieren</b><small>KI erkennt dein Essen</small></label><input id="ai-file" class="vh" type="file" accept="image/*">` : ''}
-    <button class="ftool" data-act="scanOpen">${ICON_BC}<b>Barcode scannen</b><small>Nährwerte vom Produkt</small></button></div>`;
+  return `<div class="ftools"><button class="ftool" data-act="scanOpen">${ICON_BC}<b>Barcode scannen</b><small>Nährwerte vom Produkt</small></button></div>`;
 }
 const mealSelect = () => `<label class="field">Mahlzeit<select id="f-meal">${MEALS.map(m => `<option ${m === fctx.meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label>`;
 const keepMeal = () => { const s = $('#f-meal'); if (s) fctx.meal = s.value; };
 const backLink = (act = 'foodBack') => `<button class="link" data-act="${act}" style="align-self:flex-start">‹ Zurück</button>`;
 
-/* AI */
-function shrinkImage(file) {
-  return new Promise((res, rej) => {
-    const img = new Image(), url = URL.createObjectURL(file);
-    img.onload = () => {
-      const s = Math.min(1, 1024 / Math.max(img.width, img.height)), c = document.createElement('canvas');
-      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
-      res(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Bild konnte nicht gelesen werden')); };
-    img.src = url;
-  });
-}
-function aiErr(e) {
-  const m = String((e && (e.message || e.code)) || e);
-  if (/not been used|disabled|PERMISSION_DENIED|403|api-not-enabled|firebasevertexai|firebaseml/i.test(m)) return 'Die KI ist in deinem Firebase-Projekt noch nicht eingeschaltet (Firebase AI Logic).';
-  if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) return 'Das Tageskontingent der KI ist aufgebraucht. Versuch es später nochmal.';
-  if (/network|Failed to fetch|offline|Load failed/i.test(m)) return 'Keine Internetverbindung – für die KI brauchst du Internet.';
-  return 'Die Analyse hat nicht geklappt (' + m.slice(0, 140) + ').';
-}
-async function analyzeFood(b64, note) {
-  const { getAI, getGenerativeModel, GoogleAIBackend } = window.firebaseAI, app = firebase.app();
-  const ai = getAI(app._delegate || app, { backend: new GoogleAIBackend() });
-  const prompt = `Du bist Ernährungsberater. Erkenne alle Lebensmittel und Getränke auf dem Foto, schätze die Menge in Gramm (bei Getränken ml) realistisch anhand von Teller, Besteck und Verpackung und berechne die Nährwerte für genau diese Menge.
-${note ? 'Hinweis vom Nutzer: ' + note + '\n' : ''}Antworte nur mit JSON in diesem Format:
-{"items":[{"name":"kurzer deutscher Name","grams":150,"kcal":240,"p":12.5,"c":30,"f":8}],"hinweis":"ein kurzer Satz, falls etwas unsicher ist, sonst leer"}
-p = Protein in g, c = Kohlenhydrate in g, f = Fett in g. Ist kein Essen zu sehen: {"items":[],"hinweis":"Auf dem Foto ist kein Essen zu erkennen."}`;
-  let err;
-  for (const m of AI_MODELS) {
-    try {
-      const model = getGenerativeModel(ai, { model: m, generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } });
-      const r = await model.generateContent([prompt, { inlineData: { mimeType: 'image/jpeg', data: b64 } }]);
-      const j = JSON.parse(r.response.text().replace(/^\s*```(json)?|```\s*$/g, ''));
-      return { hinweis: j.hinweis || '', items: (j.items || []).filter(x => x && x.name).map(x => {
-        const g = Math.max(1, num(x.grams) || 100);
-        return { on: true, name: String(x.name), grams: Math.round(g), per: { kcal: num(x.kcal) / g, p: num(x.p) / g, c: num(x.c) / g, f: num(x.f) / g } };
-      }) };
-    } catch (e) { err = e; if (!/not found|404|unsupported|is not supported/i.test(String(e && e.message))) break; }
-  }
-  throw err;
-}
-const itemVals = it => ({ kcal: Math.round(it.per.kcal * it.grams), p: Math.round(it.per.p * it.grams * 10) / 10, c: Math.round(it.per.c * it.grams * 10) / 10, f: Math.round(it.per.f * it.grams * 10) / 10 });
 const macroLine = v => `<i class="dot p"></i>${fmt(v.p)} g <i class="dot c" style="margin-left:6px"></i>${fmt(v.c)} g <i class="dot f" style="margin-left:6px"></i>${fmt(v.f)} g`;
-function aiTotal() { const on = fctx.ai.items.filter(i => i.on); return { n: on.length, kcal: on.reduce((a, i) => a + itemVals(i).kcal, 0) }; }
-function renderAi() {
-  const A = fctx.ai;
-  let body;
-  if (A.busy) body = `<div class="aibusy"><span class="spin"></span>Die KI schaut sich dein Essen an …</div>`;
-  else if (A.items) {
-    const t = aiTotal();
-    body = A.items.length ? `${A.hinweis ? `<div class="small muted">${esc(A.hinweis)}</div>` : ''}
-      <div class="list">${A.items.map((it, i) => { const v = itemVals(it); return `<div class="item airow"><input type="checkbox" id="ai-c-${i}" data-aic="${i}" ${it.on ? 'checked' : ''} aria-label="${esc(it.name)} übernehmen">
-        <div class="grow"><input class="ainame" id="ai-n-${i}" data-ain="${i}" value="${esc(it.name)}" aria-label="Name">
-          <div class="row spread"><div class="sub num" id="ai-m-${i}">${macroLine(v)}</div><div class="row" style="gap:8px"><label class="aig"><input id="ai-g-${i}" inputmode="decimal" data-aig="${i}" value="${it.grams}" aria-label="Menge in Gramm"><span>g</span></label><b class="kcal-val" id="ai-k-${i}" style="min-width:34px;text-align:right">${v.kcal}</b></div></div></div></div>`; }).join('')}</div>
-      <div class="row spread small"><span class="muted">Mengen kannst du anpassen – die Werte rechnen mit.</span><b id="ai-tot">${t.kcal} kcal</b></div>
-      ${mealSelect()}${saveChk('ai-savemeal')}
-      <div class="sheet-actions"><label class="btn ghost" for="ai-file">Anderes Foto</label><button class="btn primary" data-act="aiSave" id="ai-save">Übernehmen (${t.n})</button></div>`
-      : `<div class="err">${esc(A.hinweis || 'Kein Essen erkannt.')}</div><label class="btn soft" for="ai-file">Anderes Foto wählen</label>`;
-  } else {
-    body = `${A.error ? `<div class="err">${esc(A.error)}</div>` : ''}
-      <label class="field">Hinweis für die KI (optional)<input id="ai-note" type="text" value="${esc(A.note || '')}" placeholder="z. B. mit Olivenöl gebraten, große Portion"></label>
-      <div class="sheet-actions"><label class="btn ghost" for="ai-file">Anderes Foto</label><button class="btn primary" data-act="aiRun">${A.error ? 'Nochmal versuchen' : 'Mit KI analysieren'}</button></div>`;
-  }
-  openSheet(`${backLink()}<h2>Foto analysieren</h2><img class="aiprev" src="${A.preview}" alt="Dein Foto">
-    <input id="ai-file" class="vh" type="file" accept="image/*">${body}
-    <div class="small muted">Die KI schätzt Mengen und Nährwerte – prüf sie kurz, bevor du sie übernimmst.</div>`, 'food');
-}
-async function runAi() {
-  const A = fctx.ai; const n = $('#ai-note'); if (n) A.note = n.value.trim();
-  A.busy = true; A.error = ''; renderAi();
-  try { const b64 = await shrinkImage(A.file); const r = await analyzeFood(b64, A.note); A.items = r.items; A.hinweis = r.hinweis; }
-  catch (e) { console.error(e); A.error = aiErr(e); }
-  A.busy = false; if (fctx && fctx.view === 'ai' && fctx.ai === A) renderAi();
-}
-
 /* barcode */
+const OFF_NOTE = '<div class="small muted">Produktdaten: <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a>, Lizenz <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL</a>. Angaben ohne Gewähr – vergleiche im Zweifel mit der Verpackung.</div>';
 let scanCtl = null;
 function stopScan() { if (scanCtl) { try { scanCtl.stop(); } catch {} scanCtl = null; } }
 function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load')); document.head.appendChild(s); }); }
@@ -1777,7 +1720,7 @@ function renderProduct() {
       ${mealSelect()}${saveChk('pr-savemeal')}
       <div class="sheet-actions"><button class="btn ghost" data-act="scanOpen">Nochmal scannen</button><button class="btn primary" data-act="prodSave">Eintragen</button></div>`;
   }
-  openSheet(`${backLink()}${body}`, 'food');
+  openSheet(`${backLink()}${body}${P.busy ? '' : OFF_NOTE}`, 'food');
 }
 function foodDone(entries) {
   const k = fctx.k; keepMeal();
@@ -1788,33 +1731,16 @@ function foodDone(entries) {
 const foodActs = {
   foodBack: () => { stopScan(); keepMeal(); const m = fctx.meal; openFood(m); },
   scanOpen: () => { keepMeal(); fctx.view = 'scan'; renderScan(); },
-  aiRun: runAi,
-  aiSave: () => { const on = fctx.ai.items.filter(i => i.on && i.name.trim()); if (!on.length) { toast('Wähle mindestens einen Eintrag aus.'); return; }
-    const entries = on.map(it => ({ name: `${it.name.trim()} (${it.grams} g)`, ...itemVals(it) }));
-    if ($('#ai-savemeal') && $('#ai-savemeal').checked) saveMeal(on.map(it => it.name.trim()).join(' + '), entries);
-    foodDone(entries); },
   pgSet: el => { $('#pg').value = el.dataset.g; fctx.prod.grams = num(el.dataset.g); updProd(); },
   prodSave: () => { const P = fctx.prod; if (!(num(P.grams) > 0)) { toast('Gib die Menge in Gramm ein.'); return; } const e = { name: `${P.name} (${fmt(num(P.grams))} g)`, ...prodVals() }; if ($('#pr-savemeal') && $('#pr-savemeal').checked) saveMeal(e.name, [e]); foodDone([e]); },
 };
 function updProd() { const v = prodVals(); $('#pr-k').textContent = v.kcal; $('#pr-m').innerHTML = macroLine(v); }
-function updAi(i) {
-  const it = fctx.ai.items[i], v = itemVals(it); $('#ai-k-' + i).textContent = v.kcal; $('#ai-m-' + i).innerHTML = macroLine(v);
-  const t = aiTotal(); $('#ai-tot').textContent = t.kcal + ' kcal'; $('#ai-save').textContent = `Übernehmen (${t.n})`;
-}
 function foodInput(el) {
   if (!fctx) return false;
   if (el.id === 'pg') { fctx.prod.grams = num(el.value); updProd(); return true; }
-  if (el.dataset.aig !== undefined) { fctx.ai.items[+el.dataset.aig].grams = Math.max(0, num(el.value)); updAi(+el.dataset.aig); return true; }
-  if (el.dataset.ain !== undefined) { fctx.ai.items[+el.dataset.ain].name = el.value; return true; }
   return false;
 }
 function foodChange(el) {
-  if (el.dataset.aic !== undefined) { fctx.ai.items[+el.dataset.aic].on = el.checked; updAi(+el.dataset.aic); return true; }
-  if (el.id === 'ai-file' && el.files && el.files[0]) {
-    keepMeal(); const file = el.files[0];
-    fctx.view = 'ai'; fctx.ai = { file, preview: URL.createObjectURL(file), note: fctx.ai && fctx.ai.note || '' };
-    runAi(); return true;
-  }
   return false;
 }
 document.addEventListener('submit', e => { if (e.target.id === 'bc-form') { e.preventDefault(); lookupBarcode(val('bc-in')); } });
@@ -1945,6 +1871,156 @@ function saveFood() {
   closeSheet(); toast(save ? `${name} eingetragen und als Mahlzeit gespeichert` : `${name} eingetragen · ${fmtInt(kcal)} kcal`); render();
 }
 
+/* ---------- Rechtliches: Datenschutz, Impressum, Hinweise, Lizenzen ---------- */
+// ⚠️ Vor dem Veröffentlichen ausfüllen – diese Angaben erscheinen in Impressum und Datenschutzerklärung.
+const OPERATOR = {
+  name: '[VORNAME NACHNAME]',
+  street: '[STRASSE HAUSNUMMER]',
+  city: '[PLZ ORT]',
+  email: '[KONTAKT-E-MAIL]',
+};
+const LEGAL_DATE = 'Oktober 2026';
+const CONSENT_VERSION = 1;
+const ext = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+const opAddr = () => `${esc(OPERATOR.name)}<br>${esc(OPERATOR.street)}<br>${esc(OPERATOR.city)}<br>E-Mail: ${esc(OPERATOR.email)}`;
+const LEGAL = {
+  datenschutz: () => ['Datenschutzerklärung', `
+    <p>Eisenlog ist eine kostenlose, private App ohne Werbung, ohne Tracking und ohne Analyse-Tools. Hier steht, welche Daten dabei anfallen, wo sie liegen und welche Rechte du hast.</p>
+    <h3>1. Verantwortlicher</h3>
+    <p>${opAddr()}</p>
+    <h3>2. Aufruf der App</h3>
+    <p>Die App wird über GitHub Pages ausgeliefert (GitHub Inc., 88 Colin P. Kelly Jr. St., San Francisco, USA). Beim Aufruf verarbeitet GitHub technisch notwendige Verbindungsdaten wie deine IP-Adresse, Zeitpunkt und Browsertyp, um die Seite auszuliefern und vor Missbrauch zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer sicheren, funktionsfähigen Bereitstellung). GitHub ist unter dem EU-US Data Privacy Framework zertifiziert. Mehr: ${ext('https://docs.github.com/de/site-policy/privacy-policies/github-general-privacy-statement', 'Datenschutzerklärung von GitHub')}.</p>
+    <h3>3. Konto und gespeicherte Inhalte</h3>
+    <p>Für ein Konto nutzt Eisenlog Firebase Authentication und Cloud Firestore von Google (Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland) als Auftragsverarbeiter. Gespeichert werden:</p>
+    <ul><li>Kontodaten: E-Mail-Adresse, Passwort (nur verschlüsselt als Hash, ich kann es nicht sehen), optional dein Name, Zeitpunkt deiner Einwilligung</li>
+    <li>Was du einträgst: Trainings, Pläne, eigene Übungen, Mahlzeiten, Wasser, Supplements</li>
+    <li>Körperangaben: Geschlecht, Alter, Größe, Gewicht und Körpermaße</li></ul>
+    <p>Körper-, Ernährungs- und Supplementangaben können Gesundheitsdaten im Sinne von Art. 9 DSGVO sein. Sie werden nur auf Grundlage deiner ausdrücklichen Einwilligung bei der Registrierung verarbeitet (Art. 9 Abs. 2 lit. a, Art. 6 Abs. 1 lit. a DSGVO). Die übrigen Kontodaten verarbeite ich, um dir die App bereitzustellen (Art. 6 Abs. 1 lit. b DSGVO).</p>
+    <p>Die Datenbank liegt in einem Google-Rechenzentrum in Frankfurt am Main. Für die Anmeldung kann Google Daten auch in den USA verarbeiten; Google ist unter dem EU-US Data Privacy Framework zertifiziert, zusätzlich gelten die EU-Standardvertragsklauseln. Mehr: ${ext('https://firebase.google.com/support/privacy', 'Datenschutz bei Firebase')}.</p>
+    <p>Jede Person sieht nur ihre eigenen Daten. Als Betreiber habe ich technisch Zugriff auf die Datenbank, schaue aber nur hinein, wenn du mich darum bittest oder es zur Behebung eines Fehlers nötig ist. Ich verkaufe keine Daten und gebe sie an niemanden weiter außer an die hier genannten Dienstleister.</p>
+    <h3>4. Speicherung auf deinem Gerät</h3>
+    <p>Die App speichert auf deinem Gerät (Local Storage und IndexedDB) eine Kopie deiner Daten, damit sie auch offline funktioniert, sowie Einstellungen wie den zuletzt geöffneten Tab. Das ist für die von dir gewünschte Funktion unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG). Es gibt keine Tracking-Cookies. Beim Abmelden wird die Offline-Kopie gelöscht.</p>
+    <h3>5. Barcode-Scanner</h3>
+    <p>Das Kamerabild wird nur auf deinem Gerät ausgewertet und nirgendwohin gesendet. Nur die erkannte Barcode-Nummer wird an Open Food Facts (Open Food Facts, 21 rue des Iris, 94700 Maisons-Alfort, Frankreich) geschickt, um Nährwerte abzurufen. Dabei sieht Open Food Facts deine IP-Adresse. Das passiert nur, wenn du den Scanner benutzt (Art. 6 Abs. 1 lit. b DSGVO). Mehr: ${ext('https://world.openfoodfacts.org/privacy', 'Datenschutz bei Open Food Facts')}.</p>
+    <h3>6. Schriften</h3>
+    <p>Alle Schriften sind in der App enthalten. Es werden keine Verbindungen zu Google Fonts oder anderen Schrift-Diensten aufgebaut.</p>
+    <h3>7. Wie lange Daten gespeichert werden</h3>
+    <p>Deine Daten bleiben gespeichert, bis du sie löschst oder dein Konto löschst. Unter „Profil → Konto &amp; Datensicherung → Konto löschen“ werden dein Konto und alle Einträge sofort gelöscht. Verbindungsdaten bei GitHub, Google und Open Food Facts löschen diese Anbieter nach ihren eigenen Fristen.</p>
+    <h3>8. Deine Rechte</h3>
+    <p>Du hast das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20, direkt in der App über „Sicherung erstellen“) und Widerspruch (Art. 21 DSGVO). Eine Einwilligung kannst du jederzeit mit Wirkung für die Zukunft widerrufen – am einfachsten, indem du dein Konto löschst, oder per E-Mail an mich.</p>
+    <p>Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, zum Beispiel bei der Behörde deines Wohnorts.</p>
+    <h3>9. Sonstiges</h3>
+    <p>Für ein Konto brauchst du eine E-Mail-Adresse; ohne sie kann die App kein Konto anlegen. Es gibt keine automatisierten Entscheidungen oder Profiling nach Art. 22 DSGVO. Eisenlog richtet sich an Personen ab 16 Jahren.</p>
+    <p class="muted">Stand: ${LEGAL_DATE}</p>`],
+  impressum: () => ['Impressum', `
+    <h3>Angaben gemäß § 5 DDG</h3>
+    <p>${opAddr()}</p>
+    <p>Eisenlog ist ein privates, nicht kommerzielles Projekt. Es gibt keine Bezahlfunktionen und keine Werbung.</p>
+    <h3>Verantwortlich für den Inhalt</h3>
+    <p>${esc(OPERATOR.name)}, Anschrift wie oben</p>`],
+  hinweise: () => ['Nutzungshinweise', `
+    <h3>Kein Medizinprodukt</h3>
+    <p>Eisenlog ist eine Hilfe zum Protokollieren von Training und Ernährung. Die App stellt keine Diagnosen und ersetzt keine ärztliche, therapeutische oder ernährungsmedizinische Beratung.</p>
+    <h3>Berechnete Werte sind Schätzungen</h3>
+    <p>Kalorienbedarf, Trainingsverbrauch und Nährwerte beruhen auf allgemeinen Formeln und auf Produktdaten von Dritten. Sie können deutlich von deinem tatsächlichen Bedarf abweichen. Wenn du eine Erkrankung hast, schwanger bist, Medikamente nimmst oder eine Ernährungsumstellung planst, sprich vorher mit einer Ärztin oder einem Arzt.</p>
+    <h3>Training</h3>
+    <p>Die Übungsfiguren sind schematisch und keine Anleitung zur richtigen Technik. Trainiere im Rahmen deiner Gesundheit und hol dir bei Unsicherheit Hilfe von Fachleuten.</p>
+    <h3>Verfügbarkeit und Haftung</h3>
+    <p>Eisenlog ist kostenlos. Es gibt keinen Anspruch auf eine bestimmte Verfügbarkeit oder darauf, dass die App fehlerfrei funktioniert. Erstelle regelmäßig eine Sicherung deiner Daten. Für eine unentgeltliche Leistung hafte ich nach den gesetzlichen Vorschriften nur für Vorsatz und grobe Fahrlässigkeit.</p>`],
+  lizenzen: () => ['Lizenzen', `
+    <p>Eisenlog verwendet freie Software und Schriften von Dritten:</p>
+    <ul><li>Firebase JavaScript SDK – Google LLC – Apache-2.0</li>
+    <li>@zxing/browser – ZXing for JS – MIT</li>
+    <li>@zxing/library – ZXing authors – Apache-2.0</li>
+    <li>tslib – Microsoft – 0BSD · idb – Jake Archibald – ISC</li>
+    <li>Schriften „Manrope“ und „Barlow Condensed“ – SIL Open Font License 1.1</li></ul>
+    <p>Produktdaten im Barcode-Scanner: ${ext('https://world.openfoodfacts.org', 'Open Food Facts')}, Lizenz ${ext('https://opendatacommons.org/licenses/odbl/1-0/', 'ODbL 1.0')}.</p>
+    <p>${IS_PWA ? ext('THIRD-PARTY-LICENSES.txt', 'Vollständige Lizenztexte') : 'Die vollständigen Lizenztexte stehen in THIRD-PARTY-LICENSES.txt.'}</p>`],
+};
+function openLegal(which) {
+  const [title, body] = LEGAL[which]();
+  openSheet(`<h2>${title}</h2><div class="legal">${body}</div>
+    <div class="sheet-actions"><span></span><button class="btn ghost" data-act="closeSheet">Schließen</button></div>`);
+}
+const legalLinks = () => `<nav class="legal-links" aria-label="Rechtliches"><button class="link" data-act="legal" data-l="datenschutz">Datenschutz</button><button class="link" data-act="legal" data-l="impressum">Impressum</button><button class="link" data-act="legal" data-l="hinweise">Hinweise</button><button class="link" data-act="legal" data-l="lizenzen">Lizenzen</button></nav>`;
+
+/* Einwilligung für bestehende Konten (vor Einführung der Checkbox angelegt) */
+const needsConsent = () => FB && authState === 'in' && serverSynced && !docs.has('consent');
+function vConsent() {
+  return `<div class="auth"><div><h2 style="font-size:28px">Kurz zustimmen</h2><p class="muted" style="margin:6px 0 0">Damit Eisenlog deine Angaben weiter speichern darf, brauchen wir einmal deine ausdrückliche Einwilligung.</p></div>
+    <label class="savechk consent"><input id="c-age" type="checkbox"> <span>Ich bin mindestens 16 Jahre alt.</span></label>
+    <label class="savechk consent"><input id="c-consent" type="checkbox"> <span>Ich willige ausdrücklich ein, dass meine Angaben zu Körper, Ernährung, Supplements und Training – auch Gesundheitsdaten – in meinem Konto gespeichert werden, damit die App funktioniert. Widerruf jederzeit durch Löschen des Kontos. Details in der <button class="link" type="button" data-act="legal" data-l="datenschutz" style="padding:0;font-size:inherit">Datenschutzerklärung</button>.</span></label>
+    <div class="err" id="c-err" role="alert"></div>
+    <button class="btn primary" data-act="consentGive">Zustimmen und weiter</button>
+    <div class="row spread"><button class="link" data-act="logout">Abmelden</button><button class="link" data-act="delAccount" style="color:var(--p)">Konto löschen</button></div>
+    ${legalLinks()}</div>`;
+}
+
+/* Konto: Bestätigungsmail und Löschen */
+async function deleteAccount() {
+  const u = fbAuth && fbAuth.currentUser, err = $('#del-err'), btn = $('#del-btn');
+  if (!u) return;
+  const pw = $('#del-pw').value;
+  if (!pw) { err.textContent = 'Gib zur Bestätigung dein Passwort ein.'; return; }
+  if (!navigator.onLine) { err.textContent = 'Zum Löschen brauchst du eine Internetverbindung.'; return; }
+  err.textContent = ''; btn.disabled = true; btn.textContent = 'Wird gelöscht …';
+  try {
+    await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pw));
+  } catch (e) {
+    err.textContent = AUTH_MSG[e.code] || 'Das Passwort konnte nicht bestätigt werden.';
+    btn.disabled = false; btn.textContent = 'Konto endgültig löschen'; return;
+  }
+  try {
+    // keine weiteren Schreibvorgänge und keine Live-Updates mehr
+    backend = null; for (const id in timers) { clearTimeout(timers[id]); timers[id] = null; }
+    if (unsubDb) { unsubDb(); unsubDb = null; }
+    const userRef = fbDb.collection('users').doc(u.uid), coll = userRef.collection('docs');
+    for (;;) {
+      const snap = await coll.limit(400).get({ source: 'server' });
+      if (snap.empty) break;
+      const b = fbDb.batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit();
+    }
+    await userRef.delete().catch(() => {});
+    await u.delete();
+    try { for (const k of Object.keys(localStorage)) if (k.startsWith('eisenlog')) localStorage.removeItem(k); } catch {}
+    try { await fbDb.terminate(); await fbDb.clearPersistence(); } catch (e) { console.warn(e); }
+    alert('Dein Konto und alle deine Daten wurden gelöscht.');
+    location.reload();
+  } catch (e) {
+    console.error(e);
+    err.textContent = 'Das Löschen hat nicht vollständig geklappt (' + (e.code || e.message) + '). Lade die App neu und versuch es nochmal – oder schreib an ' + OPERATOR.email + '.';
+    btn.disabled = false; btn.textContent = 'Konto endgültig löschen';
+  }
+}
+const legalActs = {
+  consentGive: () => {
+    const err = $('#c-err');
+    if (!$('#c-age').checked) { err.textContent = 'Eisenlog ist erst ab 16 Jahren. Bitte bestätige dein Alter.'; return; }
+    if (!$('#c-consent').checked) { err.textContent = 'Ohne deine Einwilligung kann die App deine Daten nicht speichern. Du kannst dein Konto stattdessen löschen.'; return; }
+    put('consent', { kind: 'consent', version: CONSENT_VERSION, healthData: true, age16: true, at: new Date().toISOString() });
+    render();
+  },
+  legal: el => openLegal(el.dataset.l),
+  verifyMail: async () => {
+    const u = fbAuth && fbAuth.currentUser; if (!u) return;
+    try { await u.sendEmailVerification(); toast('Bestätigungslink an ' + u.email + ' geschickt.'); }
+    catch (e) { toast(AUTH_MSG[e.code] || 'Das hat nicht geklappt.'); }
+  },
+  delAccount: () => {
+    const u = fbAuth && fbAuth.currentUser; if (!u) return;
+    openSheet(`<h2>Konto löschen</h2>
+      <p class="small" style="margin:0">Dein Konto und <b>alle</b> deine Trainings, Pläne, Ernährungs- und Körperdaten werden sofort und endgültig gelöscht. Das lässt sich nicht rückgängig machen.</p>
+      <p class="small muted" style="margin:0">Tipp: Erstelle vorher eine Sicherung, falls du die Daten behalten willst.</p>
+      <form id="delForm" class="col" style="display:flex;flex-direction:column;gap:12px" novalidate>
+        <input type="email" autocomplete="username" value="${esc(u.email)}" hidden>
+        <label class="field">Passwort zur Bestätigung<input id="del-pw" type="password" autocomplete="current-password"></label>
+        <div class="err" id="del-err" role="alert"></div>
+        <div class="sheet-actions"><button class="btn ghost" type="button" data-act="backup">Abbrechen</button><button class="btn danger" id="del-btn" type="submit">Konto endgültig löschen</button></div>
+      </form>`);
+  },
+};
+document.addEventListener('submit', e => { if (e.target.id === 'delForm') { e.preventDefault(); deleteAccount(); } });
+
 /* ---------- events ---------- */
 function saveTab() { try { localStorage.setItem('eisenlog.tab', ui.tab); } catch {} }
 const acts = {
@@ -1970,13 +2046,15 @@ const acts = {
     let last = null; try { last = localStorage.getItem('eisenlog.lastBackup'); } catch {}
     const n = workouts().length;
     openSheet(`<h2>${u ? 'Konto & Daten' : 'Datensicherung'}</h2>
-      ${u ? `<div class="card" style="padding:14px"><div class="eyebrow">Angemeldet als</div><div class="title" style="font-weight:700">${esc(u.displayName || u.email)}</div>${u.displayName ? `<div class="small muted">${esc(u.email)}</div>` : ''}<button class="btn sm" data-act="logout">Abmelden</button></div>` : ''}
+      ${u ? `<div class="card" style="padding:14px"><div class="eyebrow">Angemeldet als</div><div class="title" style="font-weight:700">${esc(u.displayName || u.email)}</div>${u.displayName ? `<div class="small muted">${esc(u.email)}</div>` : ''}<button class="btn sm" data-act="logout">Abmelden</button></div>
+        ${u.emailVerified ? '' : `<div class="verify"><span>E-Mail-Adresse noch nicht bestätigt.</span><button class="btn sm" data-act="verifyMail">Link senden</button></div>`}` : ''}
       <p class="small muted" style="margin:0">${u ? 'Deine Daten sind in deinem Konto gespeichert und auf jedem Handy da, auf dem du dich anmeldest. Zusätzlich kannst du eine Sicherung als Datei erstellen.' : 'Deine Daten liegen nur auf diesem Handy. Sichere sie ab und zu als Datei – z. B. in iCloud Drive oder Google Drive –, damit nichts verloren geht, wenn du das Handy wechselst oder die App löschst.'}</p>
       <div class="tiles"><div class="tile"><div class="v">${n}</div><div class="l">Trainings</div></div><div class="tile"><div class="v">${[...docs.values()].filter(d => d.kind === 'day').length}</div><div class="l">Tage geloggt</div></div><div class="tile"><div class="v" style="font-size:17px">${last ? esc(fmtDay(last)) : '–'}</div><div class="l">Letzte Sicherung</div></div></div>
       <button class="btn primary" data-act="exportData">Sicherung erstellen</button>
       <label class="btn soft" for="importFile" style="cursor:pointer">Sicherung wiederherstellen</label>
       <input id="importFile" type="file" accept="application/json,.json" hidden>
       <div class="small muted">Beim Wiederherstellen werden die aktuellen Daten auf diesem Gerät ersetzt.</div>
+      ${u ? '<button class="btn danger" data-act="delAccount">Konto löschen</button>' : ''}
       <div class="sheet-actions"><span></span><button class="btn ghost" data-act="closeSheet">Schließen</button></div>`);
   },
   exportData: async () => {
@@ -2058,7 +2136,7 @@ const acts = {
   },
   rmSupp: el => { if (!armed(el)) return; editProfile(p => { p.supplements = p.supplements.filter(s => s.id !== el.dataset.id); }); render(); },
 };
-Object.assign(acts, edActs, foodActs, energyActs, smActs, progActs);
+Object.assign(acts, edActs, foodActs, energyActs, smActs, progActs, legalActs);
 function goalHint() {
   const el = $('#g-hint'); if (!el) return;
   const k = Math.round(num(val('g-p')) * 4 + num(val('g-c')) * 4 + num(val('g-f')) * 9);
@@ -2090,8 +2168,9 @@ document.addEventListener('change', e => {
     e.target.files[0].text().then(txt => {
       const data = JSON.parse(txt);
       if (!data || data.app !== 'eisenlog' || !data.docs || !data.docs.profile) throw new Error('format');
-      for (const id of [...docs.keys()]) if (!(id in data.docs)) removeDoc(id);
-      for (const id in data.docs) put(id, data.docs[id]);
+      // Einwilligungsnachweis gehört zum Konto, nicht zur Sicherung – nie überschreiben oder löschen
+      for (const id of [...docs.keys()]) if (id !== 'consent' && !(id in data.docs)) removeDoc(id);
+      for (const id in data.docs) if (id !== 'consent') put(id, data.docs[id]);
       closeSheet(); toast('Sicherung wiederhergestellt'); render();
     }).catch(() => toast('Diese Datei ist keine Eisenlog-Sicherung.'));
   }
